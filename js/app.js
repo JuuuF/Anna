@@ -408,13 +408,31 @@ function arrivals() {
 function renderSoon() {
   const t = S.t, all = arrivals(), el = $('#p-soon .body');
   const row = (a, w) => `<li data-star="${esc(a.s.n)}"><span class="swatch" style="background:${catColor(a.i.cat)}"></span><div><span class="when">${w} ${dur(a.at - t)}</span><br>${esc(a.text)}</div></li>`;
-  const next = all.filter(a => a.at > t).sort((a, b) => a.at - b.at).slice(0, 12);
+  const next = all.filter(a => a.at > t).sort((a, b) => a.at - b.at).slice(0, 8);
   const last = all.filter(a => a.at <= t).sort((a, b) => b.at - a.at).slice(0, 4);
-  el.innerHTML = `<h3 style="margin-top:0">Demnächst</h3><ul class="list">${next.map(a => row(a, 'in')).join('')}</ul>
+  // tonight: the three highest naked-eye stars that are watching her right now
+  const night = S.skyT ?? Date.now();
+  const up = litStars().filter(s => s.mag <= 4.5).map(s => [starAltAz(s, night)[0], s]).filter(x => x[0] > 15).sort((a, b) => b[0] - a[0]).slice(0, 3);
+  const tonight = up.map(([, s]) => `<li data-sky="${esc(s.n)}"><span class="dot lit"></span><div>${esc(s.n)}<small>sieht gerade den ${fmtDate(t - s.d * YEAR)} – ${age(t - s.d * YEAR).replace(/\.$/, '')}</small></div></li>`).join('');
+  // anniversaries within the next 30 days
+  const today = new Date(); today.setHours(12, 0, 0, 0);
+  const days = S.items.filter(i => !i._e && i._t < today.getTime()).map(i => {
+    const d = new Date(i._t), next = new Date(today.getFullYear(), d.getMonth(), d.getDate(), 12);
+    if (next < today) next.setFullYear(next.getFullYear() + 1);
+    return { i, inDays: Math.round((next - today) / 864e5), years: next.getFullYear() - d.getFullYear() };
+  }).filter(a => a.inDays <= 30 && a.years >= 1).sort((a, b) => a.inDays - b.inDays);
+  const annRow = a => `<li data-id="${a.i.id}"><span class="swatch" style="background:${catColor(a.i.cat)}"></span><div><span class="when">${a.inDays === 0 ? 'Heute' : a.inDays === 1 ? 'Morgen' : `In ${a.inDays} Tagen`}</span><br>
+    ${a.i.id === 'birth' ? `Annas ${a.years}. Geburtstag` : `${esc(a.i.title)} – ${a.inDays === 0 ? 'heute' : 'dann'} vor ${a.years} ${a.years === 1 ? 'Jahr' : 'Jahren'}`}</div></li>`;
+  $('#dock [data-panel=soon]').classList.toggle('dot', days.some(a => a.inDays === 0) || next.some(a => a.at - t < 864e5));
+  el.innerHTML = `${tonight ? `<h3 style="margin-top:0">Heute Nacht am Himmel</h3><ul class="list">${tonight}</ul>` : ''}
+    ${days.length ? `<h3>Jahrestage</h3><ul class="list">${days.map(annRow).join('')}</ul>` : ''}
+    <h3>Wo ihr Licht demnächst ankommt</h3><ul class="list">${next.map(a => row(a, 'in')).join('')}</ul>
     <h3>Gerade angekommen</h3><ul class="list">${last.map(a => row(a, 'vor')).join('') || '<li class="muted">Noch nichts.</li>'}</ul>
     <p><button id="ics">Als Kalender speichern</button></p>
     <p class="fine">Lädt die Ankünfte der nächsten zwei Jahre als Kalender-Datei herunter – zum Öffnen im Handy- oder Computer-Kalender.</p>`;
   $$('li[data-star]', el).forEach(li => li.onclick = () => select(S.stars.find(s => s.n === li.dataset.star)));
+  $$('li[data-sky]', el).forEach(li => li.onclick = () => { setView('sky'); select(S.stars.find(s => s.n === li.dataset.sky)); });
+  $$('li[data-id]', el).forEach(li => li.onclick = () => select(S.items.find(i => i.id === li.dataset.id)));
   $('#ics').onclick = () => {
     const now = Date.now(), z = n => String(n).padStart(2, '0'), day = d => `${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}`;
     const ev = arrivals().filter(a => a.at > now && a.at < now + 2 * YEAR).sort((a, b) => a.at - b.at).map(a => {
@@ -427,13 +445,28 @@ function renderSoon() {
 }
 
 // ---------- moments: list + form ----------
+let momentsTab = 'list', momentsFind = '';
 function renderMoments() {
   const el = $('#p-moments .body'), can = store.canWrite();
+  const withPhotos = S.items.filter(i => i.photos?.length), find = momentsFind.trim().toLowerCase();
+  const shown = S.items.filter(i => !find || (i.title + ' ' + (i.text || '') + ' ' + i.date.slice(0, 4)).toLowerCase().includes(find));
+  const tools = `${withPhotos.length ? `<div class="tabs"><button data-tab="list" class="${momentsTab === 'list' ? 'on' : ''}">Alle Momente</button><button data-tab="wall" class="${momentsTab === 'wall' ? 'on' : ''}">Fotos (${withPhotos.reduce((n, i) => n + i.photos.length, 0)})</button></div>` : ''}
+    ${S.items.length > 6 && momentsTab === 'list' ? `<input type="text" id="find" placeholder="Suchen – z. B. Hochzeit oder 1998" value="${esc(momentsFind)}" style="margin-bottom:8px">` : ''}`;
+  if (momentsTab === 'wall' && withPhotos.length) {
+    el.innerHTML = tools + `<div class="photos wall">${withPhotos.flatMap(i => i.photos.map(p => `<figure data-id="${i.id}"><img data-photo="${esc(p)}" alt="" loading="lazy"><figcaption>${i.date.slice(0, 4)} · ${esc(i.title)}</figcaption></figure>`)).join('')}</div>`;
+    hydrate(el);
+    $$('figure[data-id]', el).forEach(f => { $('img', f).onclick = () => select(S.items.find(i => i.id === f.dataset.id)); });
+    $$('[data-tab]', el).forEach(b => b.onclick = () => { momentsTab = b.dataset.tab; renderMoments(); });
+    return;
+  }
+  momentsTab = 'list';
   el.innerHTML = (can ? '<p><button class="primary" id="add">+ Einen Moment hinzufügen</button></p>'
     : '<p class="muted">Wer Anna kannte, kann hier eigene Erinnerungen hinzufügen – dafür bitte unten auf „Anmelden“ tippen.</p>')
-    + `<ul class="list">${S.items.map(i => `<li data-id="${i.id}"><span class="swatch ${i._e ? 'span' : ''}" style="background:${catColor(i.cat)}"></span>
+    + tools + `<ul class="list">${shown.map(i => `<li data-id="${i.id}"><span class="swatch ${i._e ? 'span' : ''}" style="background:${catColor(i.cat)}"></span>
       <div>${esc(i.title)} ${lock(i)}<small>${range(i)}${i.photos?.length ? ` · ${i.photos.length} Foto${i.photos.length > 1 ? 's' : ''}` : ''}</small></div></li>`).join('')}</ul>`;
   $$('li[data-id]', el).forEach(li => li.onclick = () => select(S.items.find(i => i.id === li.dataset.id)));
+  $$('[data-tab]', el).forEach(b => b.onclick = () => { momentsTab = b.dataset.tab; renderMoments(); });
+  if ($('#find')) $('#find').oninput = e => { momentsFind = e.target.value; renderMoments(); const f = $('#find'); f.focus(); f.setSelectionRange(f.value.length, f.value.length); };
   if (can) $('#add').onclick = () => editItem(null);
 }
 
