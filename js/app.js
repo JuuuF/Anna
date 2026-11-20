@@ -112,7 +112,7 @@ const release = e => {
 cv.addEventListener('pointerup', release); cv.addEventListener('pointercancel', release);
 cv.addEventListener('pointerleave', () => { S.hover = null; });
 cv.addEventListener('wheel', e => {
-  e.preventDefault();
+  e.preventDefault(); cam.ease = 0.12;
   if (S.view === 'space') { cam.target = clampScale(cam.target * Math.exp(-e.deltaY * 0.0016)); cam.touched = performance.now(); }
   else skyCam.tzoom *= Math.exp(-e.deltaY * 0.0012);
 }, { passive: false });
@@ -199,7 +199,18 @@ for (const p of $$('.panel')) {
     head.addEventListener('pointerup', () => head.removeEventListener('pointermove', move), { once: true });
   });
 }
-function select(o) { if (J.on) stopJourney(); $('#yearcard').hidden = true; S.sel = o; if (S.view === 'sky' && o?.kind === 'star') lookAt(o, S.skyT ?? Date.now()); renderDetail(); openPanel('detail'); }
+function select(o) { if (J.on) stopJourney(); $('#yearcard').hidden = true; S.sel = o; shareHash(); if (S.view === 'sky' && o?.kind === 'star') lookAt(o, S.skyT ?? Date.now()); renderDetail(); openPanel('detail'); }
+
+// the address bar always names what is selected, so a link to a star or a moment can be passed on
+function shareHash() {
+  const o = S.sel, part = !o ? '' : o.kind === 'star' || o.kind === 'body' ? 'sel=' + encodeURIComponent(o.n || o.name) : o.id ? 'm=' + o.id : '';
+  history.replaceState(null, '', location.pathname + location.search + (part ? '#' + (S.view === 'sky' ? 'himmel&' : '') + part : ''));
+}
+async function shareLink(title) {
+  const url = location.href, text = `Annas Licht – ${title}`;
+  try { if (navigator.share) await navigator.share({ title: 'Annas Licht', text, url }); else { await navigator.clipboard.writeText(url); return 'Link kopiert'; } } catch { /* cancelled */ }
+  return null;
+}
 
 // ---------- a chosen time on the lifeline strip ----------
 const monthYear = t => new Date(t).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
@@ -350,6 +361,7 @@ function renderDetail() {
     }
     if (d > 0 && S.view === 'space') h += '<p><button id="fly">Näher ansehen</button></p>';
     if (o.by) h += `<p class="muted">Hinzugefügt von ${esc(o.by)}</p>`;
+    if (o.vis === 'public') h += '<p><button id="share">Link teilen</button></p>';
     if (store.canEdit(o)) h += '<p><button id="editSel">Bearbeiten</button></p>';
   } else {                                                            // a star, a planet, a probe
     const d = o.d, seen = t - d * YEAR, star = o.kind === 'star';
@@ -378,11 +390,13 @@ function renderDetail() {
     if (star) h += o.mag <= 6
       ? `<p><button id="toSky">${S.view === 'sky' ? 'Im Weltraum zeigen' : 'Am Nachthimmel zeigen'}</button> <span class="muted">mit bloßem Auge sichtbar</span></p>`
       : '<p class="muted">Zu lichtschwach für das bloße Auge.</p>';
+    h += '<p><button id="share">Link teilen</button></p>';
   }
   el.innerHTML = h; hydrate(el);
   if ($('#toSky')) $('#toSky').onclick = () => { setView(S.view === 'sky' ? 'space' : 'sky'); renderDetail(); };
   if ($('#editSel')) $('#editSel').onclick = () => editItem(o);
   if ($('#fly')) $('#fly').onclick = () => flyTo(o);
+  if ($('#share')) $('#share').onclick = async e => { const done = await shareLink(o.n || o.name || o.title); if (done) e.target.textContent = done; };
 }
 
 // ---------- arrivals ----------
@@ -606,7 +620,13 @@ async function init() {
   if (yr) selectYear(new Date(+yr, 6, 1).getTime());
   const go = /go=([^&]+)/.exec(location.hash)?.[1];
   if (go) { const n = decodeURIComponent(go); flyTo(S.stars.find(s => s.n === n) || bodies.find(b => b.name === n) || S.items.find(i => i.title === n)); cam.scale = cam.target; cam.c = [...(cam.focus?.v || [0, 0, (S.t - (cam.focus?._t || S.t)) / YEAR])]; }
-  if (want) { if (panel(want)) openPanel(want); } else if (!seen) openPanel('about');
+  // first visit: explain the page once the opening glide is over
+  if (want) { if (panel(want)) openPanel(want); } else if (!seen) setTimeout(() => { if (!J.on && $$('.panel').every(p => p.hidden)) openPanel('about'); }, 6500);
+  const mid = /\bm=(\w+)/.exec(location.hash)?.[1];
+  if (mid && S.items.find(i => i.id === mid)) select(S.items.find(i => i.id === mid));
+  if (!location.hash && S.view === 'space' && W) {       // opening: start close to the Earth and glide out until her whole light is in view
+    cam.target = clampScale(fit(Math.max((S.t - S.birth) / YEAR, 20) * 1.08, W, H)); cam.scale = cam.target * 28; cam.ease = 0.022;
+  }
   if (pickName) select(S.stars.find(s => s.n === decodeURIComponent(pickName)) || bodies.find(b => b.name === decodeURIComponent(pickName)) || S.items.find(i => i.title === decodeURIComponent(pickName)));
 }
 init();

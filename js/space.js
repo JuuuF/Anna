@@ -4,7 +4,7 @@ import { bodies, orbits, orbitPoints, moonPath, sun, vec } from './astro.js';
 
 // c: the point the camera looks at and turns around (light-years, Earth = 0), tc: where it is gliding to,
 // focus: an object to stay with (a star, a planet, a moment on the lifeline)
-export const cam = { yaw: 0.7, pitch: 0.5, scale: 0, target: 0, c: [0, 0, 0], tc: [0, 0, 0], focus: null, touched: 0 };
+export const cam = { yaw: 0.7, pitch: 0.5, scale: 0, target: 0, c: [0, 0, 0], tc: [0, 0, 0], focus: null, touched: 0, ease: 0.12 };
 // where something is right now: a moment sits on the lifeline at the distance its light has travelled
 export function posOf(o, t) {
   if (o.v) return o.v;
@@ -36,7 +36,8 @@ export function drawSpace(ctx, W, H, S) {
   const t = S.t, cx = W / 2, cy = S.cy ?? H / 2, hits = [], labels = [];
   const dOut = (t - S.birth) / YEAR, dIn = Math.max(0, (t - S.death) / YEAR);
   if (!cam.scale) cam.scale = cam.target = fit(Math.max(dOut, 20) * 1.08, W, H);
-  cam.scale = Math.exp(Math.log(cam.scale) + (Math.log(cam.target) - Math.log(cam.scale)) * 0.12);
+  cam.scale = Math.exp(Math.log(cam.scale) + (Math.log(cam.target) - Math.log(cam.scale)) * cam.ease);
+  if (Math.abs(Math.log(cam.target / cam.scale)) < 0.01) cam.ease = 0.12;
   if (cam.focus) cam.tc = [...posOf(cam.focus, t)];
   cam.c = cam.c.map((c, i) => (Math.abs(cam.tc[i] - c) * cam.scale < 0.05 ? cam.tc[i] : c + (cam.tc[i] - c) * 0.1));
   if (performance.now() - cam.touched > 5000 && !S.hover) cam.yaw += 0.0006;
@@ -164,7 +165,8 @@ export function drawSpace(ctx, W, H, S) {
   }
 
   // ---- stars ----
-  const yearD = S.sel?.kind === 'year' ? (t - S.sel._t) / YEAR : -9;       // a chosen time: the stars its light is passing right now stand out
+  const yearD = S.sel?._t && !S.sel._e ? (t - S.sel._t) / YEAR : -9;
+  const now = performance.now() / 1000;       // a chosen time: the stars its light is passing right now stand out
   for (const s of S.stars) {
     const p = proj(s.v);
     if (!p) continue;
@@ -183,7 +185,7 @@ export function drawSpace(ctx, W, H, S) {
     const r = Math.min(5, Math.max(1.5, 3.5 - 0.42 * s.mag)) * grow(p);
     if (lit) {
       const g = ctx.createRadialGradient(p[0], p[1], 0, p[0], p[1], r * 4.5);
-      g.addColorStop(0, `rgba(255,225,170,${0.5 * sh})`); g.addColorStop(1, 'rgba(255,225,170,0)');
+      g.addColorStop(0, `rgba(255,225,170,${0.5 * sh * (0.8 + 0.2 * Math.sin(now * 1.7 + s.ra))})`); g.addColorStop(1, 'rgba(255,225,170,0)');      // a gentle twinkle
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p[0], p[1], r * 4.5, 0, 7); ctx.fill();
     }
     ctx.globalAlpha = (lit ? 1 : 0.55) * sh; ctx.fillStyle = starColor(s.ci);
@@ -194,7 +196,7 @@ export function drawSpace(ctx, W, H, S) {
     const year = lit ? ' · ' + new Date(t - s.d * YEAR).getFullYear() : '';
     labels.push({ x: p[0], y: p[1] - r - 6, text: s.n + year, color: lit ? 'rgba(255,240,215,.95)' : 'rgba(200,205,225,.6)',
       alpha: on ? 1 : Math.max(0.4, sh), font: `${Math.round(Math.min(14, Math.max(10, 11.5 * p[2])))}px system-ui, sans-serif`,
-      prio: on ? 100 : (lit ? 20 : 8) + (s.hz ? 3 : 0) - s.mag * 0.8 + p[2] * 6, force: on });
+      prio: on ? 100 : (lit ? 20 : 8) + (s.hz ? 3 : 0) - s.mag * 0.8 + p[2] * 6, force: on, soft: true });
     hits.push({ x: p[0], y: p[1], o: s });
   }
 
@@ -262,6 +264,6 @@ export function drawSpace(ctx, W, H, S) {
     ctx.fillStyle = '#9cc4ff'; ctx.beginPath(); ctx.arc(o[0], o[1], 3.5, 0, 7); ctx.fill();
     labels.push({ x: o[0], y: o[1] + 17, text: 'Erde', prio: 90, color: '#cfe0ff' });
   }
-  placeLabels(ctx, labels);
+  placeLabels(ctx, labels, Math.round(W * H / 11000));
   return hits;
 }

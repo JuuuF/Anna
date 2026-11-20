@@ -75,14 +75,17 @@ export function starColor(ci) {
 }
 
 // greedy label placement: important labels first, later ones are dropped if they would overlap
-export function placeLabels(ctx, list) {
+// soft labels (star names) are limited to `maxSoft`, so small screens are not buried in text
+export function placeLabels(ctx, list, maxSoft = 1e9) {
   const done = [];
+  let soft = 0;
   list.sort((a, b) => b.prio - a.prio);
   for (const l of list) {
     ctx.font = l.font || '12px system-ui, sans-serif';
     const pad = l.box ? 9 : 4, w = ctx.measureText(l.text).width + 2 * pad, h = l.box ? 22 : 15;
     const x = l.align === 'right' ? l.x - w : l.align === 'left' ? l.x : l.x - w / 2, y = l.y - h + (l.box ? 7 : 3);
-    if (!l.force && done.some(r => x < r[0] + r[2] && x + w > r[0] && y < r[1] + r[3] && y + h > r[1])) continue;
+    if (!l.force && ((l.soft && soft >= maxSoft) || done.some(r => x < r[0] + r[2] && x + w > r[0] && y < r[1] + r[3] && y + h > r[1]))) continue;
+    if (l.soft) soft++;
     done.push([x, y, w, h]);
     ctx.globalAlpha = l.alpha ?? 1;
     ctx.textAlign = 'left';
