@@ -65,7 +65,7 @@ export function drawSky(ctx, W, H, S) {
   // an ordinary (rectilinear) camera inside the celestial sphere: straight horizon, stars arching overhead
   const base = H / 2 / Math.tan(35 * RAD);
   skyCam.tzoom = Math.min(2.3, Math.max(0.62, skyCam.tzoom));
-  skyCam.min = Math.atan(Math.max(0, H / 2 - 112) / (base * skyCam.tzoom)) / RAD;
+  skyCam.min = Math.atan(Math.max(0, H / 2 - 172) / (base * skyCam.tzoom)) / RAD;
   skyCam.talt = Math.min(89.9, Math.max(skyCam.min, skyCam.talt));
   skyCam.zoom += (skyCam.tzoom - skyCam.zoom) * 0.15;
   skyCam.alt += (skyCam.talt - skyCam.alt) * 0.15;
@@ -132,7 +132,8 @@ export function drawSky(ctx, W, H, S) {
     if (s.mag > 6) continue;
     const p = star(s.ra, s.dec);
     if (!seen(p) || p[3] < 0) continue;
-    const lit = s.d <= dOut && s.d >= dIn, on = S.sel === s || S.hover === s, rad = Math.max(1.8, 3.6 - 0.5 * s.mag);
+    const lit = s.d <= dOut && s.d >= dIn, rad = Math.max(1.8, 3.6 - 0.5 * s.mag);
+    const on = S.sel === s || S.hover === s || (S.sel?.kind === 'year' && Math.abs(s.d - (t - S.sel._t) / YEAR) < 0.75);
     if (lit) {
       const glow = ctx.createRadialGradient(p[0], p[1], 0, p[0], p[1], rad * 5.5);
       glow.addColorStop(0, 'rgba(255,215,150,.7)'); glow.addColorStop(1, 'rgba(255,215,150,0)');
@@ -186,6 +187,6 @@ export function drawSky(ctx, W, H, S) {
 
   placeLabels(ctx, labels);
   ctx.font = '13px system-ui, sans-serif'; ctx.fillStyle = 'rgba(169,164,184,.9)'; ctx.textAlign = 'center';
-  if (sunAltitude(when) > -6) ctx.fillText('Zu dieser Zeit ist es noch hell – die Sterne stehen trotzdem genau dort.', cx, H - 96);
+  if (sunAltitude(when) > -6) ctx.fillText('Zu dieser Zeit ist es noch hell – die Sterne stehen trotzdem genau dort.', cx, H - 150);
   return hits;
 }

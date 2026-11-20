@@ -3,6 +3,7 @@ import { YEAR, AU, LS, CATS, catColor, parseWhen, esc, num, fmtDate, fmtWhen, du
 import { vec, bodies, updateBodies, sunAltitude } from './astro.js';
 import * as store from './store.js';
 import { drawSpace, cam, fit, clampScale, panBy, atHome } from './space.js';
+import { createLife } from './life.js';
 import { drawSky, skyCam, lookAt, starAltAz, weather, loadWeather, weatherAt } from './sky.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -27,10 +28,14 @@ function rebuild() {
   renderAll();
 }
 const litStars = () => { const a = (S.t - S.death) / YEAR, b = (S.t - S.birth) / YEAR; return S.stars.filter(s => s.d >= a && s.d <= b); };
-function age(at, verb = 'ist') {
+function ageYears(at) {
   const b = new Date(S.birth), a = new Date(at);
   let y = a.getFullYear() - b.getFullYear();
   if (a.getMonth() < b.getMonth() || (a.getMonth() === b.getMonth() && a.getDate() < b.getDate())) y--;
+  return y;
+}
+function age(at, verb = 'ist') {
+  const y = ageYears(at);
   if (y >= 1) return `Anna ${verb} ${y} ${y === 1 ? 'Jahr' : 'Jahre'} alt.`;
   const m = Math.floor((at - S.birth) / YEAR * 12);
   return m < 1 ? `Anna ${verb} gerade erst geboren.` : `Anna ${verb} ${m} ${m === 1 ? 'Monat' : 'Monate'} alt.`;
@@ -47,8 +52,13 @@ function frame() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   S.t = Date.now() + S.offset * YEAR;
   // on phones an open sheet covers the lower part: keep the middle of the map in the part that stays visible
-  const sheet = innerWidth <= 760 ? $$('.panel').find(p => !p.hidden) : null;
-  S.cy = (S.cy ?? H / 2) + ((sheet ? Math.max(110, (H - sheet.offsetHeight) / 2 + 24) : H / 2) - (S.cy ?? H / 2)) * 0.15;
+  let want = H / 2;
+  if (innerWidth <= 760) {
+    const sheet = $$('.panel').find(p => !p.hidden), card = $$('#yearcard, #journey').find(c => !c.hidden);
+    const top = 96, bottom = sheet ? sheet.offsetHeight : card ? H - card.getBoundingClientRect().top : 122;
+    want = top + Math.max(120, H - top - bottom) / 2;
+  }
+  S.cy = (S.cy ?? want) + (want - (S.cy ?? want)) * 0.15;
   updateBodies(S.t);
   hits = (S.view === 'space' ? drawSpace : drawSky)(ctx, W, H, S);
   $('#homeBtn').hidden = atHome();
@@ -189,7 +199,40 @@ for (const p of $$('.panel')) {
     head.addEventListener('pointerup', () => head.removeEventListener('pointermove', move), { once: true });
   });
 }
-function select(o) { S.sel = o; if (S.view === 'sky' && o?.kind === 'star') lookAt(o, S.skyT ?? Date.now()); renderDetail(); openPanel('detail'); }
+function select(o) { $('#yearcard').hidden = true; S.sel = o; if (S.view === 'sky' && o?.kind === 'star') lookAt(o, S.skyT ?? Date.now()); renderDetail(); openPanel('detail'); }
+
+// ---------- a chosen time on the lifeline strip ----------
+const monthYear = t => new Date(t).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+const life = createLife($('#life canvas'), S, {
+  onYear: selectYear,
+  onItem: i => { select(i); if (S.view === 'space') flyTo(i); },
+  label: t => `${new Date(t).getFullYear()} · ${ageYears(t)} ${ageYears(t) === 1 ? 'Jahr' : 'Jahre'}`,
+});
+function selectYear(time) {
+  const y = { kind: 'year', _t: time, cat: 'freude', title: monthYear(time) };
+  if (S.view === 'space' && cam.focus && (cam.focus.kind === 'year' || cam.focus._t)) cam.focus = y;     // already travelling along the lifeline: stay on it
+  S.sel = y; closePanel('detail'); renderYear();
+}
+function renderYear() {
+  const y = S.sel, el = $('#yearcard');
+  if (y?.kind !== 'year') { el.hidden = true; return; }
+  const d = (S.t - y._t) / YEAR;
+  const seen = S.stars.map(s => [Math.abs(s.d - d), s]).sort((a, b) => a[0] - b[0]);
+  const close = seen.filter(x => x[0] < 0.75).slice(0, 4), star = s => `<a data-star="${esc(s.n)}">${esc(s.n)}</a>`;
+  const spans = S.items.filter(i => i._e && i._t <= y._t && y._t <= i._e);
+  const near = S.items.filter(i => !i._e && Math.abs(i._t - y._t) < YEAR).sort((a, b) => Math.abs(a._t - y._t) - Math.abs(b._t - y._t)).slice(0, 2);
+  el.innerHTML = `<button class="x" aria-label="Schließen">×</button><h3>${monthYear(y._t)}</h3>
+    <p>${age(y._t, 'ist')} Das Licht dieser Tage ist jetzt <b>${fmtDist(d)}</b> entfernt.</p>
+    <p>${close.length ? `Gerade zu sehen von ${close.map(x => star(x[1])).join(', ')}.`
+      : `Kein Stern dieser Karte sieht gerade genau diese Wochen – am nächsten ist ${star(seen[0][1])}.`}</p>
+    ${spans.length || near.length ? `<p class="muted">${[...spans.map(i => esc(i.title)), ...near.map(i => `<a data-item="${i.id}">${esc(i.title)}</a> (${dur(i._t - y._t)} ${i._t < y._t ? 'davor' : 'danach'})`)].join(' · ')}</p>` : ''}
+    ${S.view === 'space' ? '<div class="row"><button id="yfly">Näher ansehen</button></div>' : ''}`;
+  el.hidden = false;
+  $('.x', el).onclick = () => { S.sel = null; el.hidden = true; life.draw(); };
+  $$('[data-star]', el).forEach(a => a.onclick = () => select(S.stars.find(s => s.n === a.dataset.star)));
+  $$('[data-item]', el).forEach(a => a.onclick = () => select(S.items.find(i => i.id === a.dataset.item)));
+  if ($('#yfly')) $('#yfly').onclick = () => flyTo(y);
+}
 
 // photos are fetched (and decrypted) on demand
 const urls = new Map();
@@ -208,6 +251,8 @@ const range = i => (i._e ? `${fmtWhen(i.date)} – ${i.end ? fmtWhen(i.end) : 'z
 // ---------- detail ----------
 function renderDetail() {
   const o = S.sel, el = $('#p-detail .body'), t = S.t;
+  life.draw();
+  if (o?.kind === 'year') return renderYear();
   if (!o) { $('#p-detail h2').textContent = 'Auswahl'; el.innerHTML = '<p class="muted">Tippe auf einen Stern oder einen Moment.</p>'; return; }
   $('#p-detail h2').textContent = o.n || o.name || o.title;
   let h = '';
@@ -448,7 +493,7 @@ function renderLead() {
   $('#lead').innerHTML = `Das Licht ihres Lebens erfüllt in diesem Augenblick eine Kugel mit einem Radius von <b>${num(dOut, 7)}</b> Lichtjahren.`
     + (all >= 100 ? `<span class="more"> Rund <b>${all.toLocaleString('de-DE')}</b> Sterne sehen sie gerade – ${lit} davon zeigt diese Karte, jeden an einem anderen Tag ihres Lebens.</span>` : '');
 }
-function renderAll() { renderDetail(); renderSoon(); renderMoments(); renderLogin(); renderLead(); }
+function renderAll() { life.draw(); renderDetail(); renderSoon(); renderMoments(); renderLogin(); renderLead(); }
 
 const DEMO = [['Einschulung', '1976-08-30', '', 'kindheit'], ['Schulzeit', '1976-08-30', '1989-06-16', 'kindheit'], ['Konfirmation', '1984-04-15', '', 'kindheit'],
   ['Tanzkurs', '1986-10-03', '', 'freude'], ['Abitur', '1989-06-16', '', 'kindheit'], ['Ausbildung', '1989-09-01', '1992-07-31', 'beruf'], ['Erste Begegnung', '1994-07-09', '', 'liebe'],
@@ -480,6 +525,8 @@ async function init() {
   const want = /p=(\w+)/.exec(location.hash)?.[1], pickName = /sel=([^&]+)/.exec(location.hash)?.[1];
   const z = /z=(\w+)/.exec(location.hash)?.[1];
   if (z) { $(`#zoom [data-zoom=${z}]`)?.click(); cam.scale = cam.target; }
+  const yr = /jahr=(\d+)/.exec(location.hash)?.[1];
+  if (yr) selectYear(new Date(+yr, 6, 1).getTime());
   const go = /go=([^&]+)/.exec(location.hash)?.[1];
   if (go) { const n = decodeURIComponent(go); flyTo(S.stars.find(s => s.n === n) || bodies.find(b => b.name === n) || S.items.find(i => i.title === n)); cam.scale = cam.target; cam.c = [...(cam.focus?.v || [0, 0, (S.t - (cam.focus?._t || S.t)) / YEAR])]; }
   if (want) { if (panel(want)) openPanel(want); } else if (!seen) openPanel('about');

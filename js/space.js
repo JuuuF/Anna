@@ -164,10 +164,11 @@ export function drawSpace(ctx, W, H, S) {
   }
 
   // ---- stars ----
+  const yearD = S.sel?.kind === 'year' ? (t - S.sel._t) / YEAR : -9;       // a chosen time: the stars its light is passing right now stand out
   for (const s of S.stars) {
     const p = proj(s.v);
     if (!p) continue;
-    const lit = s.d <= dOut && s.d >= dIn, on = S.sel === s || S.hover === s;
+    const lit = s.d <= dOut && s.d >= dIn, on = S.sel === s || S.hover === s || Math.abs(s.d - yearD) < 0.75;
     if (!onScreen(p) || s.d * sc < 5) continue;
     const foot = proj([s.v[0], s.v[1], 0]);
     const sh = shade(p);
