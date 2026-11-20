@@ -16,6 +16,9 @@ Repository ausschließlich verschlüsselt (`data/private.enc`, `media/*.bin`) un
 | `data/public.json` | öffentliche Eckdaten und Momente |
 | `data/users.json` | je Zugang eine versiegelte Box (öffnet sich nur mit Name + Passwort) |
 
+Vor jeder Änderung an der Seite `sh tools/bump.sh` ausführen (gibt allen Dateien eine gemeinsame Versionsnummer).
+Bildschirmfotos in vier Gerätegrößen: `sh tools/shots.sh <Ordner> <Name> '#demo'`.
+
 Lokal ansehen: `python3 -m http.server` und <http://localhost:8000> öffnen.
 Datenschicht testen: `node tools/test_store.mjs`.
 
