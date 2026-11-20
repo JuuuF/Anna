@@ -75,10 +75,16 @@ export function updateBodies(ms) {
 }
 
 // orbit outlines around the Sun (light-years, relative to the Sun)
-export const orbits = Object.entries(EL).map(([name, el]) => ({
-  name, a: el[0] * AU,
-  pts: Array.from({ length: 121 }, (_, i) => kepler(el, i / 120 * 2 * Math.PI).map(c => c * AU)),
-}));
+export const orbits = Object.entries(EL).map(([name, el]) => ({ name, a: el[0] * AU }));
+// The outline is sampled densely around the planet's present position, so the line passes exactly
+// through the planet however far one zooms in.
+export function orbitPoints(name, ms, n = 80) {
+  const el = EL[name], M0 = ((el[3] + el[6] * dJ2000(ms) / 36525 - el[4]) % 360) * RAD, pts = [];
+  for (let k = -n; k <= n; k++) pts.push(kepler(el, M0 + Math.sign(k) * Math.abs(k / n) ** 3 * Math.PI).map(c => c * AU));
+  return pts;
+}
+// the Moon's path around the Earth during the surrounding month
+export const moonPath = ms => Array.from({ length: 81 }, (_, i) => moon(ms + (i - 40) / 80 * 27.32 * 864e5));
 
 // ---- the sky above a place ----
 export const lstDeg = (ms, lon) => (((280.46061837 + 360.98564736629 * dJ2000(ms) + lon) % 360) + 360) % 360;

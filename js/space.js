@@ -1,8 +1,26 @@
 // The 3D map: Earth in the centre, real star positions around it, and the light of a lifetime as a growing sphere.
 import { YEAR, LS, AU, catColor, starColor, placeLabels } from './util.js';
-import { bodies, orbits, sun, vec } from './astro.js';
+import { bodies, orbits, orbitPoints, moonPath, sun, vec } from './astro.js';
 
-export const cam = { yaw: 0.7, pitch: 0.5, scale: 0, target: 0, c: [0, 0, 0], touched: 0 };
+// c: the point the camera looks at and turns around (light-years, Earth = 0), tc: where it is gliding to,
+// focus: an object to stay with (a star, a planet, a moment on the lifeline)
+export const cam = { yaw: 0.7, pitch: 0.5, scale: 0, target: 0, c: [0, 0, 0], tc: [0, 0, 0], focus: null, touched: 0 };
+// where something is right now: a moment sits on the lifeline at the distance its light has travelled
+export function posOf(o, t) {
+  if (o.v) return o.v;
+  if (!o._t) return [0, 0, 0];
+  const when = o._e ? (o._t + Math.min(o._e, t)) / 2 : o._t;
+  return [0, 0, Math.max(0, (t - when) / YEAR)];
+}
+// move the view sideways by a number of screen pixels
+export function panBy(dx, dy) {
+  const cy = Math.cos(cam.yaw), sy = Math.sin(cam.yaw), cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch), k = 1 / cam.scale;
+  const right = [cy, -sy, 0], up = [sy * sp, cy * sp, cp];
+  cam.focus = null;
+  cam.tc = cam.tc.map((c, i) => Math.max(-150, Math.min(150, c - dx * k * right[i] + dy * k * up[i])));
+  cam.c = [...cam.tc];
+}
+export const atHome = () => !cam.focus && Math.hypot(...cam.tc) < 1e-9;
 export const fit = (ly, W, H) => Math.min(W, H) * 0.4 / ly;
 export const clampScale = s => Math.min(4e9, Math.max(1.5, s));
 
@@ -15,10 +33,12 @@ const dust = Array.from({ length: 2600 }, (_, i) => {
 });
 
 export function drawSpace(ctx, W, H, S) {
-  const t = S.t, cx = W / 2, cy = H / 2, hits = [], labels = [];
+  const t = S.t, cx = W / 2, cy = S.cy ?? H / 2, hits = [], labels = [];
   const dOut = (t - S.birth) / YEAR, dIn = Math.max(0, (t - S.death) / YEAR);
   if (!cam.scale) cam.scale = cam.target = fit(Math.max(dOut, 20) * 1.08, W, H);
   cam.scale = Math.exp(Math.log(cam.scale) + (Math.log(cam.target) - Math.log(cam.scale)) * 0.12);
+  if (cam.focus) cam.tc = [...posOf(cam.focus, t)];
+  cam.c = cam.c.map((c, i) => (Math.abs(cam.tc[i] - c) * cam.scale < 0.05 ? cam.tc[i] : c + (cam.tc[i] - c) * 0.1));
   if (performance.now() - cam.touched > 5000 && !S.hover) cam.yaw += 0.0006;
   const sc = cam.scale, F = 1.05 * Math.max(W, H);     // small F = strong perspective
   const cyaw = Math.cos(cam.yaw), syaw = Math.sin(cam.yaw), cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
@@ -124,8 +144,9 @@ export function drawSpace(ctx, W, H, S) {
     const px = orb.a * sc;
     if (px < 10 || px > 30 * Math.max(W, H)) continue;
     ctx.strokeStyle = orb.name === 'Erde' ? 'rgba(140,180,255,.3)' : 'rgba(255,255,255,.13)'; ctx.lineWidth = 1;
-    path(orb.pts.map(p => [p[0] + sun[0], p[1] + sun[1], p[2] + sun[2]])); ctx.stroke();
+    path(orbitPoints(orb.name, t).map(p => [p[0] + sun[0], p[1] + sun[1], p[2] + sun[2]])); ctx.stroke();
   }
+  if (bodies[0].d * sc > 25 && bodies[0].d * sc < 30 * Math.max(W, H)) { ctx.strokeStyle = 'rgba(255,255,255,.13)'; path(moonPath(t)); ctx.stroke(); }
   for (const b of bodies) {
     const p = proj(b.v);
     if (!onScreen(p) || b.d * sc < 5) continue;

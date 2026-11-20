@@ -1,8 +1,8 @@
 // Interface: canvas interaction, floating panels, moments, accounts.
-import { YEAR, AU, CATS, catColor, parseWhen, esc, num, fmtDate, fmtWhen, dur, fmtDist, readDate, readTime, dateInput, timeInput } from './util.js';
+import { YEAR, AU, LS, CATS, catColor, parseWhen, esc, num, fmtDate, fmtWhen, dur, fmtDist, readDate, readTime, dateInput, timeInput } from './util.js';
 import { vec, bodies, updateBodies, sunAltitude } from './astro.js';
 import * as store from './store.js';
-import { drawSpace, cam, fit, clampScale } from './space.js';
+import { drawSpace, cam, fit, clampScale, panBy, atHome } from './space.js';
 import { drawSky, skyCam, lookAt, starAltAz, weather, loadWeather, weatherAt } from './sky.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -46,8 +46,12 @@ function frame() {
   W = cv.clientWidth; H = cv.clientHeight;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   S.t = Date.now() + S.offset * YEAR;
+  // on phones an open sheet covers the lower part: keep the middle of the map in the part that stays visible
+  const sheet = innerWidth <= 760 ? $$('.panel').find(p => !p.hidden) : null;
+  S.cy = (S.cy ?? H / 2) + ((sheet ? Math.max(110, (H - sheet.offsetHeight) / 2 + 24) : H / 2) - (S.cy ?? H / 2)) * 0.15;
   updateBodies(S.t);
   hits = (S.view === 'space' ? drawSpace : drawSky)(ctx, W, H, S);
+  $('#homeBtn').hidden = atHome();
   requestAnimationFrame(frame);
 }
 function pick(x, y, reach = 20) {
@@ -55,9 +59,17 @@ function pick(x, y, reach = 20) {
   for (const h of hits) { const d = Math.hypot(h.x - x, h.y - y); if (d < reach) { reach = d; best = h.o; } }
   return best;
 }
+// fly to something and look at it up close; the camera then turns and zooms around it instead of the Earth
+function flyTo(o) {
+  if (!o) return;
+  const room = o.kind === 'body' ? Math.max(o.d * 0.6, 4 * LS) : o._e ? Math.max(4, (Math.min(o._e, S.t) - o._t) / YEAR * 0.75) : o.kind === 'star' ? 6 : 4;
+  cam.focus = o; cam.target = clampScale(fit(room, W, H)); cam.touched = performance.now();
+}
+function goHome() { cam.focus = null; cam.tc = [0, 0, 0]; cam.touched = performance.now(); }
 const pointers = new Map();
-let moved = 0, pinch = 0;
-cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); pointers.set(e.pointerId, [e.clientX, e.clientY]); moved = 0; pinch = 0; cam.touched = performance.now(); });
+let moved = 0, pinch = 0, mid = null;
+cv.addEventListener('contextmenu', e => e.preventDefault());
+cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); pointers.set(e.pointerId, [e.clientX, e.clientY]); moved = 0; pinch = 0; mid = null; cam.touched = performance.now(); });
 cv.addEventListener('pointermove', e => {
   const prev = pointers.get(e.pointerId);
   if (!prev) { S.hover = pick(e.clientX, e.clientY); cv.classList.toggle('point', !!S.hover); return; }
@@ -66,10 +78,12 @@ cv.addEventListener('pointermove', e => {
   moved += Math.abs(dx) + Math.abs(dy); cam.touched = performance.now();
   const sky = S.view === 'sky';
   if (pointers.size === 2) {
-    const [a, b] = [...pointers.values()], dist = Math.hypot(a[0] - b[0], a[1] - b[1]);
+    const [a, b] = [...pointers.values()], dist = Math.hypot(a[0] - b[0], a[1] - b[1]), m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
     if (pinch && sky) skyCam.zoom = skyCam.tzoom = skyCam.tzoom * dist / pinch;
-    else if (pinch) cam.scale = cam.target = clampScale(cam.target * dist / pinch);
-    pinch = dist;
+    else if (pinch) { cam.scale = cam.target = clampScale(cam.target * dist / pinch); panBy(m[0] - mid[0], m[1] - mid[1]); }   // two fingers: zoom and move
+    pinch = dist; mid = m;
+  } else if (!sky && (e.shiftKey || e.buttons & 6)) {    // shift or right mouse button: move sideways
+    panBy(dx, dy);
   } else if (sky) {                                  // grab the sky and pull it
     const k = 57.3 / skyCam.S;
     skyCam.az = skyCam.taz = (skyCam.taz - dx * k / Math.max(0.25, Math.cos(skyCam.alt * Math.PI / 180)) + 360) % 360;
@@ -84,7 +98,7 @@ const release = e => {
     const o = pick(e.clientX, e.clientY, e.pointerType === 'mouse' ? 20 : 30);
     if (o) select(o);
   }
-  pinch = 0;
+  pinch = 0; mid = null;
 };
 cv.addEventListener('pointerup', release); cv.addEventListener('pointercancel', release);
 cv.addEventListener('pointerleave', () => { S.hover = null; });
@@ -93,11 +107,13 @@ cv.addEventListener('wheel', e => {
   if (S.view === 'space') { cam.target = clampScale(cam.target * Math.exp(-e.deltaY * 0.0016)); cam.touched = performance.now(); }
   else skyCam.tzoom *= Math.exp(-e.deltaY * 0.0012);
 }, { passive: false });
-cv.addEventListener('dblclick', e => { const o = pick(e.clientX, e.clientY); cam.c = o?.v ? [...o.v] : [0, 0, 0]; });
+cv.addEventListener('dblclick', e => { if (S.view === 'space') flyTo(pick(e.clientX, e.clientY)); });
 
 $$('#zoom button').forEach(b => b.onclick = () => {
   const z = b.dataset.zoom, dOut = (S.t - S.birth) / YEAR, dIn = Math.max((S.t - S.death) / YEAR, 2e-4);
-  cam.c = [0, 0, 0]; cam.touched = performance.now();
+  cam.touched = performance.now();
+  if (z !== 'in' && z !== 'out') goHome();
+  if (z === 'home') return;
   cam.target = clampScale(z === 'in' ? cam.target * 2 : z === 'out' ? cam.target / 2
     : fit(z === 'life' ? Math.max(dOut, 20) * 1.08 : z === 'near' ? 13 : z === 'last' ? dIn * 1.5 : 33 * AU, W, H));
 });
@@ -107,7 +123,7 @@ function setView(v) {
   document.body.classList.toggle('sky', v === 'sky');
   $$('#dock [data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === v));
   $('#zoom').hidden = v !== 'space'; $('#skybar').hidden = v !== 'sky';
-  $('#hint').textContent = v === 'space' ? 'Ziehen dreht die Karte · Mausrad oder zwei Finger zoomen · Sterne und Momente lassen sich antippen'
+  $('#hint').textContent = v === 'space' ? 'Ziehen dreht · Mausrad oder zwei Finger zoomen · Doppelklick fliegt hin · Umschalt-Taste oder zwei Finger verschieben'
     : 'Ziehen, um dich umzuschauen · Golden leuchten die Sterne, die Anna in diesem Moment sehen – mit dem Jahr, das dort gerade zu sehen ist.';
   if (v === 'sky' && S.sel?.kind === 'star') lookAt(S.sel, S.skyT ?? Date.now());
   $('#hint').style.opacity = 1; setTimeout(() => { $('#hint').style.opacity = 0; }, 9000);
@@ -212,6 +228,7 @@ function renderDetail() {
       if (past) h += `<p>Zuletzt erreichte es <b>${esc(past.n)}</b> – vor ${dur((d - past.d) * YEAR)}.</p>`;
       if (next) h += `<p>Als Nächstes kommt es bei <b>${esc(next.n)}</b> an – in ${dur((next.d - d) * YEAR)}.</p>`;
     }
+    if (d > 0 && S.view === 'space') h += '<p><button id="fly">Näher ansehen</button></p>';
     if (o.by) h += `<p class="muted">Hinzugefügt von ${esc(o.by)}</p>`;
     if (store.canEdit(o)) h += '<p><button id="editSel">Bearbeiten</button></p>';
   } else {                                                            // a star, a planet, a probe
@@ -237,6 +254,7 @@ function renderDetail() {
       h += alt > 2 ? `<p>Steht gerade ${Math.round(alt)}° hoch im ${['Norden', 'Nordosten', 'Osten', 'Südosten', 'Süden', 'Südwesten', 'Westen', 'Nordwesten'][Math.round(az / 45) % 8]}.</p>`
         : '<p class="muted">Steht zu dieser Uhrzeit unter dem Horizont.</p>';
     }
+    if (S.view === 'space') h += '<p><button id="fly">Näher ansehen</button></p>';
     if (star) h += o.mag <= 6
       ? `<p><button id="toSky">${S.view === 'sky' ? 'Im Weltraum zeigen' : 'Am Nachthimmel zeigen'}</button> <span class="muted">mit bloßem Auge sichtbar</span></p>`
       : '<p class="muted">Zu lichtschwach für das bloße Auge.</p>';
@@ -244,6 +262,7 @@ function renderDetail() {
   el.innerHTML = h; hydrate(el);
   if ($('#toSky')) $('#toSky').onclick = () => { setView(S.view === 'sky' ? 'space' : 'sky'); renderDetail(); };
   if ($('#editSel')) $('#editSel').onclick = () => editItem(o);
+  if ($('#fly')) $('#fly').onclick = () => flyTo(o);
 }
 
 // ---------- arrivals ----------
@@ -431,6 +450,12 @@ function renderLead() {
 }
 function renderAll() { renderDetail(); renderSoon(); renderMoments(); renderLogin(); renderLead(); }
 
+const DEMO = [['Einschulung', '1976-08-30', '', 'kindheit'], ['Schulzeit', '1976-08-30', '1989-06-16', 'kindheit'], ['Konfirmation', '1984-04-15', '', 'kindheit'],
+  ['Tanzkurs', '1986-10-03', '', 'freude'], ['Abitur', '1989-06-16', '', 'kindheit'], ['Ausbildung', '1989-09-01', '1992-07-31', 'beruf'], ['Erste Begegnung', '1994-07-09', '', 'liebe'],
+  ['Hochzeit', '1998-05-23T14:30', '', 'liebe'], ['Ehe', '1998-05-23', null, 'liebe'], ['Einzug ins Haus', '2004-10-01', '', 'liebe'], ['Reise ans Meer', '2015-08-12', '', 'freude'],
+  ['Krankheit', '2023-03-01', null, 'krankheit']].map(([title, date, end, cat], n) => ({ id: 'demo' + n, title, date, end: end || '', period: end !== '', cat, vis: 'public', photos: [],
+  text: 'Ein Beispieltext, der nur beim Testen auf dem eigenen Rechner erscheint.' }));
+
 // ---------- start ----------
 async function init() {
   setView(location.hash.includes('himmel') ? 'sky' : 'space');
@@ -446,6 +471,7 @@ async function init() {
   S.sky = sky;
   await store.load();
   await store.restore().then(() => store.state.session && store.load(true)).catch(e => console.error(e));
+  if (/^(localhost|127\.)/.test(location.hostname) && location.hash.includes('demo')) store.state.items = DEMO;   // made-up moments for testing on the own computer
   rebuild();
   setInterval(renderLead, 200);
   setInterval(() => { if (!$('#p-soon').hidden) renderSoon(); }, 60000);
@@ -454,6 +480,8 @@ async function init() {
   const want = /p=(\w+)/.exec(location.hash)?.[1], pickName = /sel=([^&]+)/.exec(location.hash)?.[1];
   const z = /z=(\w+)/.exec(location.hash)?.[1];
   if (z) { $(`#zoom [data-zoom=${z}]`)?.click(); cam.scale = cam.target; }
+  const go = /go=([^&]+)/.exec(location.hash)?.[1];
+  if (go) { const n = decodeURIComponent(go); flyTo(S.stars.find(s => s.n === n) || bodies.find(b => b.name === n) || S.items.find(i => i.title === n)); cam.scale = cam.target; cam.c = [...(cam.focus?.v || [0, 0, (S.t - (cam.focus?._t || S.t)) / YEAR])]; }
   if (want) { if (panel(want)) openPanel(want); } else if (!seen) openPanel('about');
   if (pickName) select(S.stars.find(s => s.n === decodeURIComponent(pickName)) || bodies.find(b => b.name === decodeURIComponent(pickName)) || S.items.find(i => i.title === decodeURIComponent(pickName)));
 }
