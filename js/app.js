@@ -3,7 +3,7 @@ import { YEAR, AU, CATS, catColor, parseWhen, esc, num, fmtDate, fmtWhen, dur, f
 import { vec, bodies, updateBodies, sunAltitude } from './astro.js';
 import * as store from './store.js';
 import { drawSpace, cam, fit, clampScale } from './space.js';
-import { drawSky } from './sky.js';
+import { drawSky, skyCam, lookAt, starAltAz, weather, loadWeather, weatherAt } from './sky.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -64,11 +64,16 @@ cv.addEventListener('pointermove', e => {
   const dx = e.clientX - prev[0], dy = e.clientY - prev[1];
   pointers.set(e.pointerId, [e.clientX, e.clientY]);
   moved += Math.abs(dx) + Math.abs(dy); cam.touched = performance.now();
-  if (S.view !== 'space') return;
+  const sky = S.view === 'sky';
   if (pointers.size === 2) {
     const [a, b] = [...pointers.values()], dist = Math.hypot(a[0] - b[0], a[1] - b[1]);
-    if (pinch) cam.scale = cam.target = clampScale(cam.target * dist / pinch);
+    if (pinch && sky) skyCam.zoom = skyCam.tzoom = skyCam.tzoom * dist / pinch;
+    else if (pinch) cam.scale = cam.target = clampScale(cam.target * dist / pinch);
     pinch = dist;
+  } else if (sky) {                                  // grab the sky and pull it
+    const k = 57.3 / skyCam.S;
+    skyCam.az = skyCam.taz = (skyCam.taz - dx * k / Math.max(0.25, Math.cos(skyCam.alt * Math.PI / 180)) + 360) % 360;
+    skyCam.alt = skyCam.talt = Math.min(89.9, Math.max(3, skyCam.talt + dy * k));
   } else {
     cam.yaw += dx * 0.006;
     cam.pitch = Math.max(-1.5, Math.min(1.5, cam.pitch + dy * 0.006));
@@ -86,6 +91,7 @@ cv.addEventListener('pointerleave', () => { S.hover = null; });
 cv.addEventListener('wheel', e => {
   e.preventDefault();
   if (S.view === 'space') { cam.target = clampScale(cam.target * Math.exp(-e.deltaY * 0.0016)); cam.touched = performance.now(); }
+  else skyCam.tzoom *= Math.exp(-e.deltaY * 0.0012);
 }, { passive: false });
 cv.addEventListener('dblclick', e => { const o = pick(e.clientX, e.clientY); cam.c = o?.v ? [...o.v] : [0, 0, 0]; });
 
@@ -98,10 +104,12 @@ $$('#zoom button').forEach(b => b.onclick = () => {
 
 function setView(v) {
   S.view = v; S.hover = null;
+  document.body.classList.toggle('sky', v === 'sky');
   $$('#dock [data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === v));
   $('#zoom').hidden = v !== 'space'; $('#skybar').hidden = v !== 'sky';
   $('#hint').textContent = v === 'space' ? 'Ziehen dreht die Karte · Mausrad oder zwei Finger zoomen · Sterne und Momente lassen sich antippen'
-    : 'Golden leuchten die Sterne, die Anna in diesem Moment sehen – mit dem Jahr, das dort gerade zu sehen ist.';
+    : 'Ziehen, um dich umzuschauen · Golden leuchten die Sterne, die Anna in diesem Moment sehen – mit dem Jahr, das dort gerade zu sehen ist.';
+  if (v === 'sky' && S.sel?.kind === 'star') lookAt(S.sel, S.skyT ?? Date.now());
   $('#hint').style.opacity = 1; setTimeout(() => { $('#hint').style.opacity = 0; }, 9000);
 }
 $$('#dock [data-view]').forEach(b => b.onclick = () => setView(b.dataset.view));
@@ -114,7 +122,20 @@ function setSkyTime(min) {
   $('#skytime').value = Math.round((d - noon()) / 6e4);
   $('#skywhen').textContent = d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }) + ' · '
     + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr';
+  cloudInfo();
 }
+function cloudInfo() {
+  const w = weatherAt(S.skyT ?? Date.now());
+  $('#clouds').classList.toggle('on', weather.on);
+  $('#cloudinfo').textContent = weather.failed ? 'Die Wetterdaten sind gerade nicht erreichbar.'
+    : !weather.hours ? '' : !w ? 'Für diese Uhrzeit gibt es keine Wettervorhersage.'
+    : `Bewölkung über Neumünster: ${Math.round(w.all)} %${weather.on ? ' · Wolkenformen sind nachempfunden' : ''} · Wetterdaten: Open-Meteo`;
+}
+$('#clouds').onclick = () => { weather.on = !weather.on; try { localStorage.setItem('annas-licht-clouds', weather.on ? '1' : ''); } catch { /* ignore */ } cloudInfo(); };
+$$('#skybar [data-look]').forEach(b => b.onclick = () => {
+  const all = b.dataset.look === 'all';
+  Object.assign(skyCam, all ? { taz: 180, talt: 89.9, tzoom: 0 } : { talt: 30, tzoom: 1 });
+});
 $('#skytime').oninput = e => setSkyTime(+e.target.value);
 $('#skynow').onclick = () => setSkyTime(null);
 
@@ -140,7 +161,7 @@ for (const p of $$('.panel')) {
     head.addEventListener('pointerup', () => head.removeEventListener('pointermove', move), { once: true });
   });
 }
-function select(o) { S.sel = o; renderDetail(); openPanel('detail'); }
+function select(o) { S.sel = o; if (S.view === 'sky' && o?.kind === 'star') lookAt(o, S.skyT ?? Date.now()); renderDetail(); openPanel('detail'); }
 
 // photos are fetched (and decrypted) on demand
 const urls = new Map();
@@ -198,6 +219,11 @@ function renderDetail() {
       if (prev) h += `<p>Zuletzt hier angekommen: ${esc(prev.title)} – vor ${dur(seen - prev._t)}.</p>`;
       if (next) h += `<p>Als Nächstes zu sehen: <b>${esc(next.title)}</b> – in ${dur(next._t - seen)}.</p>`;
       if (star) h += `<p class="muted">Und das Licht, das heute Nacht von ${esc(o.n)} bei uns ankommt, ist an genau diesem Tag dort aufgebrochen.</p>`;
+    }
+    if (star && S.view === 'sky') {
+      const [alt, az] = starAltAz(o, S.skyT ?? Date.now());
+      h += alt > 2 ? `<p>Steht gerade ${Math.round(alt)}° hoch im ${['Norden', 'Nordosten', 'Osten', 'Südosten', 'Süden', 'Südwesten', 'Westen', 'Nordwesten'][Math.round(az / 45) % 8]}.</p>`
+        : '<p class="muted">Steht zu dieser Uhrzeit unter dem Horizont.</p>';
     }
     if (star) h += o.mag <= 6
       ? `<p><button id="toSky">${S.view === 'sky' ? 'Im Weltraum zeigen' : 'Am Nachthimmel zeigen'}</button> <span class="muted">mit bloßem Auge sichtbar</span></p>`
@@ -391,6 +417,10 @@ function renderAll() { renderDetail(); renderSoon(); renderMoments(); renderLogi
 async function init() {
   setView(location.hash.includes('himmel') ? 'sky' : 'space');
   setSkyTime(sunAltitude(Date.now()) < -6 ? null : 600);
+  try { weather.on = !!localStorage.getItem('annas-licht-clouds'); } catch { /* ignore */ }
+  if (location.hash.includes('wolken')) weather.on = true;
+  const wx = () => loadWeather().then(cloudInfo);
+  wx(); setInterval(wx, 30 * 6e4);
   requestAnimationFrame(frame);
   const [stars, sky] = await Promise.all([fetch('data/stars.json').then(r => r.json()), fetch('data/sky.json').then(r => r.json())]);
   S.stars = stars.map(s => ({ ...s, kind: 'star', v: vec(s.ra, s.dec, s.d) }));

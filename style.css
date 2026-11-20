@@ -28,6 +28,8 @@ button:disabled { opacity: .5; cursor: wait; }
 #skybar { position: fixed; top: 18px; right: 18px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: flex-end;
   background: var(--glass); border: 1px solid var(--line); border-radius: 16px; padding: 10px 14px; font: 14px system-ui, sans-serif; max-width: min(520px, 92vw); }
 #skybar strong { color: var(--gold); font-weight: 600; }
+#cloudinfo { flex-basis: 100%; text-align: right; color: var(--muted); font-size: 12px; }
+#cloudinfo:empty { display: none; }
 #skybar input { flex: 1 1 140px; accent-color: var(--gold); }
 #skybar button { padding: 5px 12px; }
 #hint { position: fixed; left: 0; right: 0; bottom: 74px; margin: 0; text-align: center; font: 13px system-ui, sans-serif; color: var(--muted); pointer-events: none; text-shadow: 0 1px 6px #000; transition: opacity 1s; }
@@ -42,6 +44,7 @@ button:disabled { opacity: .5; cursor: wait; }
   background: var(--glass); border: 1px solid var(--line); border-radius: 16px; backdrop-filter: blur(14px); box-shadow: 0 14px 50px rgba(0, 0, 0, .45); }
 .panel.left { left: 18px; }
 .panel.right { right: 18px; top: 120px; max-height: calc(100vh - 210px); }
+body.sky .panel.right { top: 176px; max-height: calc(100vh - 266px); }
 .panel.bottom { left: 50%; top: auto; bottom: 78px; transform: translateX(-50%); width: 440px; }
 .panel > header { display: flex; align-items: center; justify-content: space-between; padding: 10px 10px 8px 18px; cursor: move; border-bottom: 1px solid var(--line); touch-action: none; }
 .panel h2 { font-weight: normal; font-size: 19px; margin: 0; color: var(--gold); }

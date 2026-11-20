@@ -4,7 +4,7 @@
 import { AU, LS } from './util.js';
 
 const RAD = Math.PI / 180, EPS = 23.4392911 * RAD;
-export const NMS = { name: 'Neumünster', lat: 54.0714, lon: 9.9899 };
+export const NMS = { name: 'Neumünster', lat: 54.07, lon: 10.01 };
 
 const jd = ms => ms / 864e5 + 2440587.5;
 const dJ2000 = ms => jd(ms) - 2451545;

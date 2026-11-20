@@ -1,80 +1,190 @@
-// The night sky above Neumünster: which of the stars you can see tonight are watching Anna right now?
+// The night sky as a dome above Neumünster: you stand on the ground and look around.
+// Which of the stars you can see tonight are watching Anna right now?
 import { YEAR, starColor, placeLabels } from './util.js';
 import { NMS, lstDeg, altaz, sunAltitude } from './astro.js';
 
 const RAD = Math.PI / 180;
+// az/alt: where you look (degrees), t*: where the view is gliding to, zoom: 1 = about 120° field of view
+export const skyCam = { az: 180, alt: 30, taz: 180, talt: 30, zoom: 1, tzoom: 1, S: 300 };
+export const weather = { on: false, hours: null, now: null, failed: false };
+
+export const starAltAz = (s, when) => altaz(s.ra, s.dec, lstDeg(when, NMS.lon), NMS.lat);
+export function lookAt(s, when) {
+  const [alt, az] = starAltAz(s, when);
+  if (alt < 2) return false;
+  skyCam.taz = az; skyCam.talt = Math.min(89.5, Math.max(8, alt - 8));
+  return true;
+}
+
+// ---- weather: cloud cover and wind from Open-Meteo (free, no key) ----
+export async function loadWeather() {
+  try {
+    const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${NMS.lat}&longitude=${NMS.lon}`
+      + '&hourly=cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,wind_speed_10m,wind_direction_10m&past_days=1&forecast_days=2&timeformat=unixtime');
+    const h = (await r.json()).hourly;
+    weather.hours = h.time.map((t, i) => ({ t: t * 1000, all: h.cloud_cover[i], low: Math.max(h.cloud_cover_low[i], h.cloud_cover_mid[i]),
+      high: h.cloud_cover_high[i], wind: h.wind_speed_10m[i], dir: h.wind_direction_10m[i] }));
+    weather.failed = false;
+  } catch { weather.failed = true; }
+}
+// the forecast hour closest to a moment, or null if we have no data for it
+export function weatherAt(when) {
+  if (!weather.hours) return null;
+  let best = null;
+  for (const h of weather.hours) if (!best || Math.abs(h.t - when) < Math.abs(best.t - when)) best = h;
+  return best && Math.abs(best.t - when) < 45 * 6e4 ? best : null;
+}
+
+// ---- clouds: soft puffs on a flat layer above the observer. The amount matches the real cloud cover,
+//      the shapes are an illustration (nobody can tell us the real shapes). ----
+const hash = (i, j) => { const s = Math.sin(i * 127.1 + j * 311.7) * 43758.5453; return s - Math.floor(s); };
+function smooth(x, y) {
+  const i = Math.floor(x), j = Math.floor(y), fx = x - i, fy = y - j, u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
+  const a = hash(i, j), b = hash(i + 1, j), c = hash(i, j + 1), d = hash(i + 1, j + 1);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+const field = (i, j) => smooth(i / 4.5, j / 4.5) * 0.5 + smooth(i / 1.7, j / 1.7) * 0.32 + hash(i, j) * 0.18;
+const quant = [];
+for (let i = 0; i < 70; i++) for (let j = 0; j < 70; j++) quant.push(field(i, j));
+quant.sort((a, b) => a - b);
+let puff = null;
+function sprite() {
+  puff = Object.assign(document.createElement('canvas'), { width: 64, height: 64 });
+  const c = puff.getContext('2d'), g = c.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, 'rgba(96,104,134,1)'); g.addColorStop(.5, 'rgba(84,92,122,.55)'); g.addColorStop(1, 'rgba(70,78,108,0)');
+  c.fillStyle = g; c.fillRect(0, 0, 64, 64);
+}
 
 export function drawSky(ctx, W, H, S) {
   const t = S.t, when = S.skyT ?? Date.now(), hits = [], labels = [];
   const dOut = (t - S.birth) / YEAR, dIn = Math.max(0, (t - S.death) / YEAR);
-  const top = W < 700 ? 150 : 110, bottom = 130;
-  const R = Math.max(120, Math.min(W - 24, H - top - bottom) / 2), cx = W / 2, cy = top + R;
-  const lst = lstDeg(when, NMS.lon);
-  // zenith in the centre, north up, east to the left – the way you see it lying on your back
-  const P = (ra, dec) => {
-    const [alt, az] = altaz(ra, dec, lst, NMS.lat), r = (90 - alt) / 90 * R;
-    return [cx - r * Math.sin(az * RAD), cy - r * Math.cos(az * RAD), alt];
+  const lst = lstDeg(when, NMS.lon), cx = W / 2, cy = H / 2;
+
+  // camera
+  const base = 0.433 * Math.max(W, H), zmin = 0.23 * Math.min(W, H) / base;
+  skyCam.tzoom = Math.min(5, Math.max(zmin, skyCam.tzoom));
+  skyCam.talt = Math.min(89.9, Math.max(3, skyCam.talt));
+  skyCam.zoom += (skyCam.tzoom - skyCam.zoom) * 0.15;
+  skyCam.alt += (skyCam.talt - skyCam.alt) * 0.15;
+  skyCam.az = (skyCam.az + ((skyCam.taz - skyCam.az + 540) % 360 - 180) * 0.15 + 360) % 360;
+  const Sc = skyCam.S = base * skyCam.zoom;
+  const a0 = skyCam.alt * RAD, z0 = skyCam.az * RAD;
+  const f = [Math.cos(a0) * Math.sin(z0), Math.cos(a0) * Math.cos(z0), Math.sin(a0)];       // forward (east, north, up)
+  const r = [Math.cos(z0), -Math.sin(z0), 0];
+  const u = [-Math.sin(a0) * Math.sin(z0), -Math.sin(a0) * Math.cos(z0), Math.cos(a0)];
+  // stereographic projection of a unit direction; cut = how far behind us we still draw
+  const Pd = (d, cut = -0.75) => {
+    const zc = d[0] * f[0] + d[1] * f[1] + d[2] * f[2];
+    if (zc < cut) return null;
+    const k = 2 / (1 + zc) * Sc;
+    return [cx + (d[0] * r[0] + d[1] * r[1]) * k, cy - (d[0] * u[0] + d[1] * u[1] + d[2] * u[2]) * k, zc];
   };
+  const dir = (alt, az) => [Math.cos(alt * RAD) * Math.sin(az * RAD), Math.cos(alt * RAD) * Math.cos(az * RAD), Math.sin(alt * RAD)];
+  const P = (alt, az, cut) => Pd(dir(alt, az), cut);
+  const star = (ra, dec) => { const [alt, az] = altaz(ra, dec, lst, NMS.lat); const p = alt > -3 ? P(alt, az) : null; if (p) p[3] = alt; return p; };
+  const seen = p => p && p[0] > -30 && p[0] < W + 30 && p[1] > -30 && p[1] < H + 30;
 
-  ctx.clearRect(0, 0, W, H);
-  const day = sunAltitude(when) > -6;
-  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
-  g.addColorStop(0, '#0b1030'); g.addColorStop(.8, '#121a40'); g.addColorStop(1, '#27264f');
-  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.fill();
-  ctx.strokeStyle = 'rgba(243,201,139,.45)'; ctx.lineWidth = 1.5; ctx.stroke();
-  ctx.font = '14px Georgia, serif'; ctx.fillStyle = 'rgba(243,201,139,.9)'; ctx.textAlign = 'center';
-  for (const [text, az] of [['N', 0], ['O', 90], ['S', 180], ['W', 270]])
-    ctx.fillText(text, cx - (R + 14) * Math.sin(az * RAD), cy - (R + 14) * Math.cos(az * RAD) + 5);
+  // sky
+  const sky = ctx.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0, '#070b24'); sky.addColorStop(1, '#141a42');
+  ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
 
-  ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.clip();
+  // a faint grid makes the dome readable: circles of equal height, lines towards the zenith
+  ctx.strokeStyle = 'rgba(150,170,230,.09)'; ctx.lineWidth = 1;
+  for (const alt of [30, 60]) { ctx.beginPath(); for (let az = 0; az <= 360; az += 4) { const p = P(alt, az); if (p) ctx.lineTo(p[0], p[1]); else ctx.moveTo(0, 0); } ctx.stroke(); }
+  for (let az = 0; az < 360; az += 45) { ctx.beginPath(); for (let alt = 0; alt <= 90; alt += 5) { const p = P(alt, az); if (p) ctx.lineTo(p[0], p[1]); } ctx.stroke(); }
+  const zen = P(90, 0);
+  if (seen(zen)) labels.push({ x: zen[0], y: zen[1] - 6, text: 'Zenit', color: 'rgba(150,170,230,.5)', font: '10px system-ui, sans-serif', prio: 4 });
+
   if (S.sky) {
-    ctx.strokeStyle = 'rgba(150,170,230,.28)'; ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(150,170,230,.3)';
     for (const line of S.sky.lines) {
       ctx.beginPath();
       let prev = null;
       for (const [ra, dec] of line) {
-        const p = P(ra, dec);
-        if (prev && (prev[2] > -3 || p[2] > -3)) { ctx.moveTo(prev[0], prev[1]); ctx.lineTo(p[0], p[1]); }
+        const p = star(ra, dec);
+        if (prev && p && (seen(prev) || seen(p))) { ctx.moveTo(prev[0], prev[1]); ctx.lineTo(p[0], p[1]); }
         prev = p;
       }
       ctx.stroke();
     }
     for (const [ra, dec, name] of S.sky.names) {
-      const p = P(ra, dec);
-      if (p[2] > 12) labels.push({ x: p[0], y: p[1], text: name.toUpperCase(), color: 'rgba(150,170,230,.5)', font: '10px system-ui, sans-serif', prio: 5 });
+      const p = star(ra, dec);
+      if (seen(p) && p[3] > 6) labels.push({ x: p[0], y: p[1], text: name.toUpperCase(), color: 'rgba(150,170,230,.55)', font: '10px system-ui, sans-serif', prio: 5 });
     }
+    const grow = Math.min(1.8, Math.max(0.8, Math.sqrt(skyCam.zoom)));
     for (const s of S.sky.stars) {
-      const p = P(s[0], s[1]);
-      if (p[2] < 0) continue;
-      ctx.globalAlpha = 0.85; ctx.fillStyle = starColor(s[3]);
-      ctx.beginPath(); ctx.arc(p[0], p[1], Math.max(0.6, 2.9 - 0.5 * s[2]), 0, 7); ctx.fill();
-      if (s[5] && s[2] < 1.6 && !(s[4] && s[4] <= dOut && s[4] >= dIn)) labels.push({ x: p[0], y: p[1] + 16, text: s[5], color: 'rgba(210,215,235,.6)', font: '11px system-ui, sans-serif', prio: 6 });
+      const p = star(s[0], s[1]);
+      if (!seen(p) || p[3] < 0) continue;
+      ctx.globalAlpha = Math.min(0.9, 0.35 + p[3] / 25); ctx.fillStyle = starColor(s[3]);       // dimmer in the haze near the horizon
+      ctx.beginPath(); ctx.arc(p[0], p[1], Math.max(0.6, 2.9 - 0.5 * s[2]) * grow, 0, 7); ctx.fill();
+      if (s[5] && s[2] < 1.6 && !(s[4] && s[4] <= dOut && s[4] >= dIn)) labels.push({ x: p[0], y: p[1] + 17, text: s[5], color: 'rgba(210,215,235,.65)', font: '11px system-ui, sans-serif', prio: 6 });
     }
     ctx.globalAlpha = 1;
   }
+
   // the stars that can see her – only those visible to the naked eye
   for (const s of S.stars) {
     if (s.mag > 6) continue;
-    const p = P(s.ra, s.dec);
-    if (p[2] < 0) continue;
-    const lit = s.d <= dOut && s.d >= dIn, on = S.sel === s || S.hover === s, r = Math.max(1.6, 3.4 - 0.5 * s.mag);
+    const p = star(s.ra, s.dec);
+    if (!seen(p) || p[3] < 0) continue;
+    const lit = s.d <= dOut && s.d >= dIn, on = S.sel === s || S.hover === s, rad = Math.max(1.8, 3.6 - 0.5 * s.mag);
     if (lit) {
-      const glow = ctx.createRadialGradient(p[0], p[1], 0, p[0], p[1], r * 5);
-      glow.addColorStop(0, 'rgba(255,215,150,.65)'); glow.addColorStop(1, 'rgba(255,215,150,0)');
-      ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(p[0], p[1], r * 5, 0, 7); ctx.fill();
-      ctx.fillStyle = '#ffe9c4'; ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, 7); ctx.fill();
-      labels.push({ x: p[0], y: p[1] - r - 6, text: `${s.n} · ${new Date(t - s.d * YEAR).getFullYear()}`, color: '#ffe3b5',
-        font: '12px Georgia, serif', prio: on ? 100 : 30 - s.mag, force: on });
-    } else if (on) labels.push({ x: p[0], y: p[1] - r - 6, text: s.n, prio: 100, force: true });
-    if (on) { ctx.strokeStyle = '#f3c98b'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(p[0], p[1], r + 8, 0, 7); ctx.stroke(); }
+      const glow = ctx.createRadialGradient(p[0], p[1], 0, p[0], p[1], rad * 5.5);
+      glow.addColorStop(0, 'rgba(255,215,150,.7)'); glow.addColorStop(1, 'rgba(255,215,150,0)');
+      ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(p[0], p[1], rad * 5.5, 0, 7); ctx.fill();
+      ctx.fillStyle = '#ffe9c4'; ctx.beginPath(); ctx.arc(p[0], p[1], rad, 0, 7); ctx.fill();
+      labels.push({ x: p[0], y: p[1] - rad - 7, text: `${s.n} · ${new Date(t - s.d * YEAR).getFullYear()}`, color: '#ffe3b5',
+        font: '13px Georgia, serif', prio: on ? 100 : 30 - s.mag, force: on });
+    } else if (on) labels.push({ x: p[0], y: p[1] - rad - 7, text: s.n, prio: 100, force: true });
+    if (on) { ctx.strokeStyle = '#f3c98b'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(p[0], p[1], rad + 9, 0, 7); ctx.stroke(); }
     hits.push({ x: p[0], y: p[1], o: s });
   }
-  placeLabels(ctx, labels);
-  ctx.restore();
 
-  if (day) {
-    ctx.font = '13px system-ui, sans-serif'; ctx.fillStyle = 'rgba(169,164,184,.9)'; ctx.textAlign = 'center';
-    ctx.fillText('Zu dieser Zeit ist es noch hell – die Sterne stehen trotzdem genau dort.', cx, cy + R + 34);
+  // clouds drift with the real wind
+  const wx = weather.on ? weatherAt(when) : null;
+  if (wx) {
+    if (!puff) sprite();
+    const sec = performance.now() / 1000, wd = (wx.dir + 180) * RAD, speed = wx.wind / 3600 * 3;      // km per second, a little faster than reality
+    for (const [cover, h, cell, alpha, seed] of [[wx.high, 9, 2.6, 0.35, 900], [wx.low, 2, 0.6, 0.8, 0]]) {
+      if (cover < 3) continue;
+      const limit = quant[Math.min(quant.length - 1, Math.floor(cover / 100 * quant.length))];
+      const ox = Math.sin(wd) * speed * sec, oy = Math.cos(wd) * speed * sec;
+      const si = Math.floor(ox / cell), sj = Math.floor(oy / cell), fx = ox - si * cell, fy = oy - sj * cell, n = 40;
+      ctx.globalAlpha = alpha;
+      for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) {
+        const v = field(i - si + seed, j - sj + seed);
+        if (v > limit) continue;
+        const x = i * cell + fx, y = j * cell + fy, dist = Math.hypot(x, y, h);
+        const p = Pd([x / dist, y / dist, h / dist], -0.3);
+        if (!p) continue;
+        const size = (2 / (1 + p[2])) * Sc * cell * (0.9 + (limit - v) * 2.5) / dist;
+        if (p[0] < -size || p[0] > W + size || p[1] < -size || p[1] > H + size) continue;
+        ctx.drawImage(puff, p[0] - size, p[1] - size, size * 2, size * 2);
+      }
+    }
+    ctx.globalAlpha = 1;
   }
+
+  // the ground: everything outside the horizon circle
+  const horizon = [];
+  for (let az = 0; az < 360; az += 2) horizon.push(P(0, az, -2));
+  ctx.beginPath(); ctx.rect(0, 0, W, H);
+  horizon.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]))); ctx.closePath();
+  ctx.fillStyle = '#05060f'; ctx.fill('evenodd');
+  ctx.beginPath(); horizon.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]))); ctx.closePath();
+  for (const [w, a] of [[26, 0.05], [10, 0.08], [1.5, 0.5]]) { ctx.lineWidth = w; ctx.strokeStyle = `rgba(243,201,139,${a})`; ctx.stroke(); }
+  ctx.textAlign = 'center';
+  ['N', 'NO', 'O', 'SO', 'S', 'SW', 'W', 'NW'].forEach((name, i) => {
+    const p = P(0, i * 45), q = P(-4, i * 45);
+    if (!seen(p) || !q) return;
+    const len = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1, ex = (q[0] - p[0]) / len, ey = (q[1] - p[1]) / len;      // "down" at this point of the horizon
+    ctx.font = i % 2 ? '12px Georgia, serif' : '16px Georgia, serif'; ctx.fillStyle = i % 2 ? 'rgba(243,201,139,.6)' : 'rgba(243,201,139,.95)';
+    ctx.fillText(name, p[0] + ex * 20, p[1] + ey * 20 + 5);
+  });
+
+  placeLabels(ctx, labels);
+  ctx.font = '13px system-ui, sans-serif'; ctx.fillStyle = 'rgba(169,164,184,.9)'; ctx.textAlign = 'center';
+  if (sunAltitude(when) > -6) ctx.fillText('Zu dieser Zeit ist es noch hell – die Sterne stehen trotzdem genau dort.', cx, H - 96);
   return hits;
 }
