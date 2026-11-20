@@ -1,5 +1,5 @@
 // Interface: canvas interaction, floating panels, moments, accounts.
-import { YEAR, AU, CATS, catColor, parseWhen, esc, num, fmtDate, fmtWhen, dur, fmtDist } from './util.js';
+import { YEAR, AU, CATS, catColor, parseWhen, esc, num, fmtDate, fmtWhen, dur, fmtDist, readDate, readTime, dateInput, timeInput } from './util.js';
 import { vec, bodies, updateBodies, sunAltitude } from './astro.js';
 import * as store from './store.js';
 import { drawSpace, cam, fit, clampScale } from './space.js';
@@ -292,10 +292,10 @@ function editItem(item) {
       <label><input type="radio" name="period" value="" ${i.period ? '' : 'checked'}><span>Ein Moment<small>ein bestimmter Tag</small></span></label>
       <label><input type="radio" name="period" value="1" ${i.period ? 'checked' : ''}><span>Ein Zeitraum<small>z. B. Schulzeit, ein Beruf, eine Reise</small></span></label>
     </div>
-    <div class="two"><label><span data-l="from">Wann?</span><input type="date" name="date" required value="${d0 || ''}"></label>
-      <label>Uhrzeit (wenn bekannt)<input type="time" name="time" value="${t0 || ''}"></label></div>
-    <div class="two" data-end><label>Bis wann?<input type="date" name="end" value="${d1 || ''}"></label>
-      <label>Uhrzeit (wenn bekannt)<input type="time" name="endtime" value="${t1 || ''}"></label></div>
+    <div class="two"><label><span data-l="from">Wann?</span>${dateInput('date', d0, true)}</label>
+      <label>Uhrzeit (wenn bekannt)${timeInput('time', t0)}</label></div>
+    <div class="two" data-end><label>Bis wann?${dateInput('end', d1)}</label>
+      <label>Uhrzeit (wenn bekannt)${timeInput('endtime', t1)}</label></div>
     <p class="muted" data-end style="margin:-6px 0 0">„Bis wann“ leer lassen, wenn der Zeitraum bis zuletzt andauerte.</p>
     <label>Thema<select name="cat">${Object.entries(CATS).map(([k, [n]]) => `<option value="${k}" ${k === i.cat ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
     <label>Ein paar Worte dazu<textarea name="text" maxlength="4000" placeholder="Was möchtest du erzählen?">${esc(i.text)}</textarea></label>
@@ -328,16 +328,20 @@ function editItem(item) {
   };
   form.onsubmit = async e => {
     e.preventDefault();
-    const f = form, withTime = (d, t) => (d && t ? `${d}T${t}` : d);
-    if (f.period.value && f.end.value && f.end.value < f.date.value) { status.className = 'status err'; status.textContent = 'Das Ende liegt vor dem Anfang.'; return; }
+    const f = form, withTime = (d, t) => (d && t ? `${d}T${t}` : d), bad = m => { status.className = 'status err'; status.textContent = m; };
+    const date = readDate(f.date.value), time = readTime(f.time.value);
+    const end = f.period.value ? readDate(f.end.value) : '', endtime = f.period.value ? readTime(f.endtime.value) : '';
+    if (!date || end === null) return bad('Bitte das Datum als Tag.Monat.Jahr eingeben, zum Beispiel 23.05.1998.');
+    if (time === null || endtime === null) return bad('Bitte die Uhrzeit mit 24 Stunden eingeben, zum Beispiel 14:30.');
+    if (end && end < date) return bad('Das Ende liegt vor dem Anfang.');
     busy(true); status.className = 'status'; status.textContent = 'Wird gespeichert … das dauert einen Augenblick.';
     try {
       const photos = [];
       for (const file of f.photos.files) photos.push(await prepPhoto(file));
       const { _t, _e, ...base } = i;
       const saved = await store.saveItem({
-        ...base, title: f.title.value.trim(), date: withTime(f.date.value, f.time.value), period: !!f.period.value,
-        end: f.period.value ? withTime(f.end.value, f.endtime.value) : '', cat: f.cat.value, text: f.text.value.trim(), vis: f.vis.value, photos: keep,
+        ...base, title: f.title.value.trim(), date: withTime(date, time), period: !!f.period.value,
+        end: withTime(end, endtime), cat: f.cat.value, text: f.text.value.trim(), vis: f.vis.value, photos: keep,
       }, photos, removed);
       rebuild(); select(S.items.find(x => x.id === saved.id));
     } catch (err) { fail(err); }
@@ -385,8 +389,8 @@ function renderLogin() {
         <p class="status"></p><button class="primary">Zugang anlegen</button></form>
       <form id="person"><h3>Grunddaten</h3>
         ${p.placeholder ? '<p class="status err">Hier stehen noch Platzhalter – bitte die echten Daten eintragen.</p>' : ''}
-        <div class="two"><label>Geboren am<input type="date" name="bd" required value="${bd}"></label><label>Uhrzeit<input type="time" name="bt" value="${bt || ''}"></label></div>
-        <div class="two"><label>Letztes Licht am<input type="date" name="dd" required value="${dd}"></label><label>Uhrzeit<input type="time" name="dt" value="${dt || ''}"></label></div>
+        <div class="two"><label>Geboren am${dateInput('bd', bd, true)}</label><label>Uhrzeit${timeInput('bt', bt)}</label></div>
+        <div class="two"><label>Letztes Licht am${dateInput('dd', dd, true)}</label><label>Uhrzeit${timeInput('dt', dt)}</label></div>
         <p class="status"></p><button class="primary">Grunddaten speichern</button></form>
       <p class="fine">Ein entfernter Zugang kann sich nicht mehr anmelden. Wer ganz sicher ausgesperrt werden soll, braucht zusätzlich einen neuen GitHub-Token.</p>`;
   }
@@ -396,8 +400,10 @@ function renderLogin() {
   $$('[data-rm]', el).forEach(b => b.onclick = () => confirm('Diesen Zugang wirklich entfernen?') && act($('#newUser .status'), 'Wird entfernt …', () => store.removeUser(b.dataset.rm)));
   $('#newUser').onsubmit = e => { e.preventDefault(); const f = e.target; act($('.status', f), 'Wird angelegt …', () => store.addUser(f.name.value, f.pass.value, f.role.value)); };
   $('#person').onsubmit = e => {
-    e.preventDefault(); const f = e.target, j = (d, t) => (t ? `${d}T${t}` : d);
-    act($('.status', f), 'Wird gespeichert …', () => store.setPerson({ name: 'Anna', birth: j(f.bd.value, f.bt.value), death: j(f.dd.value, f.dt.value) }));
+    e.preventDefault(); const f = e.target, j = (d, t) => (t ? `${d}T${t}` : d), st2 = $('.status', f);
+    const b = readDate(f.bd.value), d = readDate(f.dd.value), bt2 = readTime(f.bt.value), dt2 = readTime(f.dt.value);
+    if (!b || !d || bt2 === null || dt2 === null || d < b) { st2.className = 'status err'; st2.textContent = 'Bitte Datum als 23.05.1998 und Uhrzeit als 14:30 eingeben.'; return; }
+    act(st2, 'Wird gespeichert …', () => store.setPerson({ name: 'Anna', birth: j(b, bt2), death: j(d, dt2) }));
   };
 }
 

@@ -179,8 +179,8 @@ export function drawSpace(ctx, W, H, S) {
   // ---- her lifeline: every moment at the distance its light has reached ----
   const up = d => [0, 0, d];
   if (dOut > 0) {
-    ctx.strokeStyle = 'rgba(243,201,139,.6)'; ctx.lineWidth = 1.5;
-    path([up(dIn), up(dOut)]); ctx.stroke();
+    ctx.strokeStyle = 'rgba(243,201,139,.22)'; ctx.lineWidth = 7; path([up(dIn), up(dOut)]); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,236,200,.95)'; ctx.lineWidth = 2; path([up(dIn), up(dOut)]); ctx.stroke();
   }
   const sel = S.sel && S.sel._t ? S.sel : null;
   if (sel && o) {
@@ -210,17 +210,18 @@ export function drawSpace(ctx, W, H, S) {
       ctx.globalAlpha = 1; ctx.lineCap = 'butt';
       const m = [(a[0] + b[0]) / 2 + off, (a[1] + b[1]) / 2];
       if (onScreen(m)) {
-        labels.push({ x: m[0] + 8, y: m[1] + 4, text: it.title, align: 'left', color, font: '12px Georgia, serif', prio: on ? 100 : 40, force: on });
+        labels.push({ x: m[0] + 10, y: m[1] + 4, text: it.title, align: 'left', color: '#fff', box: color, font: 'italic 13px Georgia, serif', prio: on ? 100 : 40, force: on });
         hits.push({ x: m[0], y: m[1], o: it }, { x: a[0] + off, y: a[1], o: it }, { x: b[0] + off, y: b[1], o: it });
       }
       continue;
     }
     const p = proj(up(d));
     if (!onScreen(p) || d * sc < 4) continue;
-    ctx.fillStyle = on ? '#fff' : color; ctx.strokeStyle = on ? '#fff' : color; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(p[0], p[1], on ? 6 : 4.5, 0, 7);
-    it.id === 'death' ? ctx.stroke() : ctx.fill();
-    labels.push({ x: p[0] - 10, y: p[1] + 4, text: it.title, align: 'right', color: on ? '#fff' : '#f6dcb0', font: '13px Georgia, serif', prio: on ? 100 : it.fixed ? 60 : 50, force: on });
+    const q = on ? 9 : 7;                                // moments are diamonds with a name plate – stars are round dots
+    ctx.beginPath(); ctx.moveTo(p[0], p[1] - q); ctx.lineTo(p[0] + q, p[1]); ctx.lineTo(p[0], p[1] + q); ctx.lineTo(p[0] - q, p[1]); ctx.closePath();
+    ctx.fillStyle = it.id === 'death' ? '#1b1630' : color; ctx.fill();
+    ctx.strokeStyle = on ? '#fff' : it.id === 'death' ? color : 'rgba(255,255,255,.85)'; ctx.lineWidth = on ? 2.5 : 1.5; ctx.stroke();
+    labels.push({ x: p[0] - 13, y: p[1] + 4, text: it.title, align: 'right', color: '#fff', box: on ? '#fff' : color, font: '14px Georgia, serif', prio: on ? 100 : it.fixed ? 60 : 50, force: on });
     hits.push({ x: p[0], y: p[1], o: it });
   }
 
