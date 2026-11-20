@@ -53,7 +53,14 @@ async function gh(path, opt = {}) {
   if (!r.ok) { const e = new Error(`GitHub antwortet mit Fehler ${r.status}`); e.status = r.status; throw e; }
   return opt.raw ? new Uint8Array(await r.arrayBuffer()) : r.json();
 }
-const fromRepo = path => gh(`/contents/${path}?ref=${BRANCH}`, { raw: true }).catch(e => { if (e.status === 404) return null; throw e; });
+// Exact bytes of a file. The "contents" endpoint re-encodes files it takes for text (it corrupted our ciphertext),
+// so it is only asked for the blob id; the blob endpoint returns the bytes untouched.
+async function fromRepo(path) {
+  try {
+    const meta = await gh(`/contents/${path}?ref=${BRANCH}`);
+    return unb64((await gh(`/git/blobs/${meta.sha}`)).content.replace(/\s/g, ''));
+  } catch (e) { if (e.status === 404) return null; throw e; }
+}
 
 // fresh = read straight from the repository (needs a token), otherwise from the published page
 async function readBytes(path, fresh) {

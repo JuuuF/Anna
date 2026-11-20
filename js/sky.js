@@ -4,15 +4,16 @@ import { YEAR, starColor, placeLabels } from './util.js';
 import { NMS, lstDeg, altaz, sunAltitude } from './astro.js';
 
 const RAD = Math.PI / 180;
-// az/alt: where you look (degrees), t*: where the view is gliding to, zoom: 1 = about 120° field of view
-export const skyCam = { az: 180, alt: 30, taz: 180, talt: 30, zoom: 1, tzoom: 1, S: 300 };
+// az/alt: where you look (degrees), t*: where the view is gliding to, zoom: 1 = 70° field of view (top to bottom),
+// min: lowest allowed gaze – the horizon never rises above the lower edge of the picture
+export const skyCam = { az: 180, alt: 30, taz: 180, talt: 0, zoom: 1, tzoom: 1, S: 300, min: 0 };
 export const weather = { on: false, hours: null, now: null, failed: false };
 
 export const starAltAz = (s, when) => altaz(s.ra, s.dec, lstDeg(when, NMS.lon), NMS.lat);
 export function lookAt(s, when) {
   const [alt, az] = starAltAz(s, when);
   if (alt < 2) return false;
-  skyCam.taz = az; skyCam.talt = Math.min(89.5, Math.max(8, alt - 8));
+  skyCam.taz = az; skyCam.talt = alt;
   return true;
 }
 
@@ -61,9 +62,11 @@ export function drawSky(ctx, W, H, S) {
   const lst = lstDeg(when, NMS.lon), cx = W / 2, cy = H / 2;
 
   // camera
-  const base = 0.433 * Math.max(W, H), zmin = 0.23 * Math.min(W, H) / base;
-  skyCam.tzoom = Math.min(5, Math.max(zmin, skyCam.tzoom));
-  skyCam.talt = Math.min(89.9, Math.max(3, skyCam.talt));
+  // an ordinary (rectilinear) camera inside the celestial sphere: straight horizon, stars arching overhead
+  const base = H / 2 / Math.tan(35 * RAD);
+  skyCam.tzoom = Math.min(2.3, Math.max(0.62, skyCam.tzoom));
+  skyCam.min = Math.atan(Math.max(0, H / 2 - 112) / (base * skyCam.tzoom)) / RAD;
+  skyCam.talt = Math.min(89.9, Math.max(skyCam.min, skyCam.talt));
   skyCam.zoom += (skyCam.tzoom - skyCam.zoom) * 0.15;
   skyCam.alt += (skyCam.talt - skyCam.alt) * 0.15;
   skyCam.az = (skyCam.az + ((skyCam.taz - skyCam.az + 540) % 360 - 180) * 0.15 + 360) % 360;
@@ -72,12 +75,12 @@ export function drawSky(ctx, W, H, S) {
   const f = [Math.cos(a0) * Math.sin(z0), Math.cos(a0) * Math.cos(z0), Math.sin(a0)];       // forward (east, north, up)
   const r = [Math.cos(z0), -Math.sin(z0), 0];
   const u = [-Math.sin(a0) * Math.sin(z0), -Math.sin(a0) * Math.cos(z0), Math.cos(a0)];
-  // stereographic projection of a unit direction; cut = how far behind us we still draw
-  const Pd = (d, cut = -0.75) => {
+  // perspective projection of a unit direction; only what lies in front of us
+  const Pd = (d, cut = 0.12) => {
     const zc = d[0] * f[0] + d[1] * f[1] + d[2] * f[2];
     if (zc < cut) return null;
-    const k = 2 / (1 + zc) * Sc;
-    return [cx + (d[0] * r[0] + d[1] * r[1]) * k, cy - (d[0] * u[0] + d[1] * u[1] + d[2] * u[2]) * k, zc];
+    const k = Sc / zc;
+    return [cx + (d[0] * r[0] + d[1] * r[1]) * k, cy - (d[0] * u[0] + d[1] * u[1] + d[2] * u[2]) * k, zc, 0, k];
   };
   const dir = (alt, az) => [Math.cos(alt * RAD) * Math.sin(az * RAD), Math.cos(alt * RAD) * Math.cos(az * RAD), Math.sin(alt * RAD)];
   const P = (alt, az, cut) => Pd(dir(alt, az), cut);
@@ -85,14 +88,15 @@ export function drawSky(ctx, W, H, S) {
   const seen = p => p && p[0] > -30 && p[0] < W + 30 && p[1] > -30 && p[1] < H + 30;
 
   // sky
-  const sky = ctx.createLinearGradient(0, 0, 0, H);
-  sky.addColorStop(0, '#070b24'); sky.addColorStop(1, '#141a42');
+  const hy = Math.min(H * 3, cy + Sc * Math.tan(a0));                // where the horizon crosses the middle of the picture
+  const sky = ctx.createLinearGradient(0, hy - 1.1 * H, 0, hy);
+  sky.addColorStop(0, '#060920'); sky.addColorStop(.7, '#10173c'); sky.addColorStop(1, '#232a5c');
   ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
 
   // a faint grid makes the dome readable: circles of equal height, lines towards the zenith
   ctx.strokeStyle = 'rgba(150,170,230,.09)'; ctx.lineWidth = 1;
-  for (const alt of [30, 60]) { ctx.beginPath(); for (let az = 0; az <= 360; az += 4) { const p = P(alt, az); if (p) ctx.lineTo(p[0], p[1]); else ctx.moveTo(0, 0); } ctx.stroke(); }
-  for (let az = 0; az < 360; az += 45) { ctx.beginPath(); for (let alt = 0; alt <= 90; alt += 5) { const p = P(alt, az); if (p) ctx.lineTo(p[0], p[1]); } ctx.stroke(); }
+  for (const alt of [15, 30, 45, 60, 75]) { ctx.beginPath(); let pen = false; for (let az = 0; az <= 360; az += 3) { const p = P(alt, az); if (p) { pen ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); } pen = !!p; } ctx.stroke(); }
+  for (let az = 0; az < 360; az += 22.5) { ctx.beginPath(); let pen = false; for (let alt = 0; alt <= 90; alt += 5) { const p = P(alt, az); if (p) { pen ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); } pen = !!p; } ctx.stroke(); }
   const zen = P(90, 0);
   if (seen(zen)) labels.push({ x: zen[0], y: zen[1] - 6, text: 'Zenit', color: 'rgba(150,170,230,.5)', font: '10px system-ui, sans-serif', prio: 4 });
 
@@ -117,7 +121,7 @@ export function drawSky(ctx, W, H, S) {
       const p = star(s[0], s[1]);
       if (!seen(p) || p[3] < 0) continue;
       ctx.globalAlpha = Math.min(0.9, 0.35 + p[3] / 25); ctx.fillStyle = starColor(s[3]);       // dimmer in the haze near the horizon
-      ctx.beginPath(); ctx.arc(p[0], p[1], Math.max(0.6, 2.9 - 0.5 * s[2]) * grow, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(p[0], p[1], Math.max(0.7, 3.2 - 0.55 * s[2]) * grow, 0, 7); ctx.fill();
       if (s[5] && s[2] < 1.6 && !(s[4] && s[4] <= dOut && s[4] >= dIn)) labels.push({ x: p[0], y: p[1] + 17, text: s[5], color: 'rgba(210,215,235,.65)', font: '11px system-ui, sans-serif', prio: 6 });
     }
     ctx.globalAlpha = 1;
@@ -156,9 +160,9 @@ export function drawSky(ctx, W, H, S) {
         const v = field(i - si + seed, j - sj + seed);
         if (v > limit) continue;
         const x = i * cell + fx, y = j * cell + fy, dist = Math.hypot(x, y, h);
-        const p = Pd([x / dist, y / dist, h / dist], -0.3);
+        const p = Pd([x / dist, y / dist, h / dist]);
         if (!p) continue;
-        const size = (2 / (1 + p[2])) * Sc * cell * (0.9 + (limit - v) * 2.5) / dist;
+        const size = Math.min(p[4], 4 * Sc) * cell * (0.9 + (limit - v) * 2.5) / dist;
         if (p[0] < -size || p[0] > W + size || p[1] < -size || p[1] > H + size) continue;
         ctx.drawImage(puff, p[0] - size, p[1] - size, size * 2, size * 2);
       }
@@ -167,18 +171,15 @@ export function drawSky(ctx, W, H, S) {
   }
 
   // the ground: everything outside the horizon circle
-  const horizon = [];
-  for (let az = 0; az < 360; az += 2) horizon.push(P(0, az, -2));
-  ctx.beginPath(); ctx.rect(0, 0, W, H);
-  horizon.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]))); ctx.closePath();
-  ctx.fillStyle = '#05060f'; ctx.fill('evenodd');
-  ctx.beginPath(); horizon.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]))); ctx.closePath();
-  for (const [w, a] of [[26, 0.05], [10, 0.08], [1.5, 0.5]]) { ctx.lineWidth = w; ctx.strokeStyle = `rgba(243,201,139,${a})`; ctx.stroke(); }
+  if (hy < H + 40) {                                   // the horizon is a straight, level line in this projection
+    ctx.fillStyle = '#05060f'; ctx.fillRect(0, hy, W, H - hy + 1);
+    for (const [w, a] of [[26, 0.05], [10, 0.08], [1.5, 0.5]]) { ctx.fillStyle = `rgba(243,201,139,${a})`; ctx.fillRect(0, hy - w / 2, W, w); }
+  }
   ctx.textAlign = 'center';
   ['N', 'NO', 'O', 'SO', 'S', 'SW', 'W', 'NW'].forEach((name, i) => {
-    const p = P(0, i * 45), q = P(-4, i * 45);
-    if (!seen(p) || !q) return;
-    const len = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1, ex = (q[0] - p[0]) / len, ey = (q[1] - p[1]) / len;      // "down" at this point of the horizon
+    const p = P(0, i * 45);
+    if (!seen(p)) return;
+    const ex = 0, ey = 1;
     ctx.font = i % 2 ? '12px Georgia, serif' : '16px Georgia, serif'; ctx.fillStyle = i % 2 ? 'rgba(243,201,139,.6)' : 'rgba(243,201,139,.95)';
     ctx.fillText(name, p[0] + ex * 20, p[1] + ey * 20 + 5);
   });

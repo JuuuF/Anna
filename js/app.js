@@ -73,7 +73,7 @@ cv.addEventListener('pointermove', e => {
   } else if (sky) {                                  // grab the sky and pull it
     const k = 57.3 / skyCam.S;
     skyCam.az = skyCam.taz = (skyCam.taz - dx * k / Math.max(0.25, Math.cos(skyCam.alt * Math.PI / 180)) + 360) % 360;
-    skyCam.alt = skyCam.talt = Math.min(89.9, Math.max(3, skyCam.talt + dy * k));
+    skyCam.alt = skyCam.talt = Math.min(89.9, Math.max(skyCam.min, skyCam.talt + dy * k));
   } else {
     cam.yaw += dx * 0.006;
     cam.pitch = Math.max(-1.5, Math.min(1.5, cam.pitch + dy * 0.006));
@@ -134,7 +134,7 @@ function cloudInfo() {
 $('#clouds').onclick = () => { weather.on = !weather.on; try { localStorage.setItem('annas-licht-clouds', weather.on ? '1' : ''); } catch { /* ignore */ } cloudInfo(); };
 $$('#skybar [data-look]').forEach(b => b.onclick = () => {
   const all = b.dataset.look === 'all';
-  Object.assign(skyCam, all ? { taz: 180, talt: 89.9, tzoom: 0 } : { talt: 30, tzoom: 1 });
+  Object.assign(skyCam, all ? { talt: 89.9 } : { talt: 0, tzoom: 1 });
 });
 $('#skytime').oninput = e => setSkyTime(+e.target.value);
 $('#skynow').onclick = () => setSkyTime(null);
@@ -319,7 +319,7 @@ function editItem(item) {
   $$('[name=period]', el).forEach(r => r.onchange = toggle);
   thumbs(); toggle();
   const busy = on => $$('button', form).forEach(b => { b.disabled = on; });
-  const fail = e => { busy(false); status.className = 'status err'; status.textContent = 'Das hat leider nicht geklappt: ' + e.message; console.error(e); };
+  const fail = e => { busy(false); status.className = 'status err'; status.textContent = 'Das hat leider nicht geklappt: ' + (e.message || e.name || 'unbekannter Fehler'); console.error(e); };
   $('#cancel').onclick = renderMoments;
   if (item) $('#del').onclick = async () => {
     if (!confirm(`„${item.title}“ wirklich löschen?`)) return;
@@ -352,7 +352,7 @@ function renderLogin() {
   const act = async (statusEl, text, fn) => {
     statusEl.className = 'status'; statusEl.textContent = text;
     $$('button', el).forEach(b => { b.disabled = true; });
-    try { await fn(); rebuild(); } catch (e) { $$('button', el).forEach(b => { b.disabled = false; }); statusEl.className = 'status err'; statusEl.textContent = e.message; console.error(e); }
+    try { await fn(); rebuild(); } catch (e) { $$('button', el).forEach(b => { b.disabled = false; }); statusEl.className = 'status err'; statusEl.textContent = e.message || e.name || 'Das hat leider nicht geklappt.'; console.error(e); }
   };
   if (!s && !st.users.users.length) {
     el.innerHTML = `<p>Diese Seite ist noch nicht eingerichtet. Mit dem ersten Zugang wird der Schlüssel erzeugt, der alle privaten Erinnerungen schützt.</p>
