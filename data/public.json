@@ -1,9 +1,8 @@
 {
  "person": {
   "name": "Anna",
-  "birth": "1970-05-02",
-  "death": "2026-09-15",
-  "placeholder": true
+  "birth": "1970-04-16",
+  "death": "2026-08-27T03:00"
  },
  "items": []
 }
