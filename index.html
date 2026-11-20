@@ -8,8 +8,8 @@
   <meta name="theme-color" content="#0a0e22">
   <title>Annas Licht</title>
   <!-- One version for all files: raise it with every change (tools/bump.sh) so browsers never mix old and new files. -->
-  <link rel="stylesheet" href="style.css?v=202611210045">
-  <script type="importmap">{ "imports": { "./js/util.js": "./js/util.js?v=202611210045", "./js/astro.js": "./js/astro.js?v=202611210045", "./js/store.js": "./js/store.js?v=202611210045", "./js/space.js": "./js/space.js?v=202611210045", "./js/life.js": "./js/life.js?v=202611210045", "./js/life.js": "./js/life.js?v=202611210045", "./js/sky.js": "./js/sky.js?v=202611210045" } }</script>
+  <link rel="stylesheet" href="style.css?v=202611210047">
+  <script type="importmap">{ "imports": { "./js/util.js": "./js/util.js?v=202611210047", "./js/astro.js": "./js/astro.js?v=202611210047", "./js/store.js": "./js/store.js?v=202611210047", "./js/space.js": "./js/space.js?v=202611210047", "./js/life.js": "./js/life.js?v=202611210047", "./js/life.js": "./js/life.js?v=202611210047", "./js/sky.js": "./js/sky.js?v=202611210047" } }</script>
 </head>
 <body>
   <canvas id="view" aria-label="Karte: Wo Annas Licht gerade unterwegs ist"></canvas>
@@ -20,7 +20,8 @@
   </header>
 
   <div id="zoom" class="chips">
-    <button data-zoom="home" id="homeBtn" class="primary" hidden title="Zurück zur Erde in die Mitte">← Zur Erde</button>
+    <button id="play" class="primary" title="Eine geführte Reise durch ihr Leben, Moment für Moment">▶ Ihr Leben erleben</button>
+    <button data-zoom="home" id="homeBtn" hidden title="Zurück zur Erde in die Mitte">← Zur Erde</button>
     <button data-zoom="life" title="Ihr ganzes Leben">Ihr ganzes Leben</button>
     <button data-zoom="near" title="Die nächsten Sterne">Nachbarsterne</button>
     <button data-zoom="last" title="Wo ihr letztes Licht gerade ist">Letztes Licht</button>
@@ -42,6 +43,7 @@
   <p id="hint"></p>
 
   <aside id="yearcard" hidden></aside>
+  <aside id="journey" hidden></aside>
   <div id="life" title="Ihr Leben von links nach rechts – ziehen, um eine Zeit auszuwählen"><canvas></canvas></div>
 
   <button class="dockhint l" hidden aria-label="Weitere Knöpfe links">‹</button>
@@ -89,6 +91,6 @@
   <section class="panel left" id="p-login" hidden><header><h2>Für Familie &amp; Freunde</h2><button class="x" aria-label="Schließen">×</button></header><div class="body"></div></section>
 
   <div id="lightbox" hidden><img alt=""></div>
-  <script type="module" src="js/app.js?v=202611210045"></script>
+  <script type="module" src="js/app.js?v=202611210047"></script>
 </body>
 </html>

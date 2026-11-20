@@ -247,6 +247,16 @@ export function drawSpace(ctx, W, H, S) {
     hits.push({ x: p[0], y: p[1], o: it });
   }
 
+  // a chosen time that is not one of the stored moments (a point picked on the strip, a birthday of the journey)
+  if (sel && !S.items.includes(sel)) {
+    const p = proj(up((t - sel._t) / YEAR));
+    if (onScreen(p)) {
+      ctx.strokeStyle = '#f3c98b'; ctx.lineWidth = 2; ctx.fillStyle = '#1b1630';
+      ctx.beginPath(); ctx.arc(p[0], p[1], 7, 0, 7); ctx.fill(); ctx.stroke();
+      labels.push({ x: p[0] - 14, y: p[1] + 4, text: sel.title, align: 'right', color: '#fff', box: '#f3c98b', font: '14px Georgia, serif', prio: 100, force: true });
+    }
+  }
+
   // Earth
   if (o) {
     ctx.fillStyle = '#9cc4ff'; ctx.beginPath(); ctx.arc(o[0], o[1], 3.5, 0, 7); ctx.fill();

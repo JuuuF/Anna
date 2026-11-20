@@ -52,12 +52,10 @@ function frame() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   S.t = Date.now() + S.offset * YEAR;
   // on phones an open sheet covers the lower part: keep the middle of the map in the part that stays visible
-  let want = H / 2;
-  if (innerWidth <= 760) {
-    const sheet = $$('.panel').find(p => !p.hidden), card = $$('#yearcard, #journey').find(c => !c.hidden);
-    const top = 96, bottom = sheet ? sheet.offsetHeight : card ? H - card.getBoundingClientRect().top : 122;
-    want = top + Math.max(120, H - top - bottom) / 2;
-  }
+  // keep the middle of the map in the part of the screen that is not covered by a sheet or a card
+  const small = innerWidth <= 760, sheet = small && $$('.panel').find(p => !p.hidden), card = $$('#yearcard, #journey').find(c => !c.hidden);
+  const top = small ? 96 : 30, bottom = sheet ? sheet.offsetHeight : card ? H - card.getBoundingClientRect().top : 122;
+  const want = top + Math.max(120, H - top - bottom) / 2;
   S.cy = (S.cy ?? want) + (want - (S.cy ?? want)) * 0.15;
   updateBodies(S.t);
   hits = (S.view === 'space' ? drawSpace : drawSky)(ctx, W, H, S);
@@ -79,7 +77,8 @@ function goHome() { cam.focus = null; cam.tc = [0, 0, 0]; cam.touched = performa
 const pointers = new Map();
 let moved = 0, pinch = 0, mid = null;
 cv.addEventListener('contextmenu', e => e.preventDefault());
-cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); pointers.set(e.pointerId, [e.clientX, e.clientY]); moved = 0; pinch = 0; mid = null; cam.touched = performance.now(); });
+cv.addEventListener('pointerdown', e => { if (J.on && !J.paused && !J.list[J.i].end) { J.paused = true; showStation(); }   // touching the map pauses the journey
+  cv.setPointerCapture(e.pointerId); pointers.set(e.pointerId, [e.clientX, e.clientY]); moved = 0; pinch = 0; mid = null; cam.touched = performance.now(); });
 cv.addEventListener('pointermove', e => {
   const prev = pointers.get(e.pointerId);
   if (!prev) { S.hover = pick(e.clientX, e.clientY); cv.classList.toggle('point', !!S.hover); return; }
@@ -133,6 +132,7 @@ function setView(v) {
   document.body.classList.toggle('sky', v === 'sky');
   $$('#dock [data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === v));
   $('#zoom').hidden = v !== 'space'; $('#skybar').hidden = v !== 'sky';
+  if (v !== 'space' && J.on) stopJourney();
   $('#hint').textContent = v === 'space' ? 'Ziehen dreht · Mausrad oder zwei Finger zoomen · Doppelklick fliegt hin · Umschalt-Taste oder zwei Finger verschieben'
     : 'Ziehen, um dich umzuschauen · Golden leuchten die Sterne, die Anna in diesem Moment sehen – mit dem Jahr, das dort gerade zu sehen ist.';
   if (v === 'sky' && S.sel?.kind === 'star') lookAt(S.sel, S.skyT ?? Date.now());
@@ -199,7 +199,7 @@ for (const p of $$('.panel')) {
     head.addEventListener('pointerup', () => head.removeEventListener('pointermove', move), { once: true });
   });
 }
-function select(o) { $('#yearcard').hidden = true; S.sel = o; if (S.view === 'sky' && o?.kind === 'star') lookAt(o, S.skyT ?? Date.now()); renderDetail(); openPanel('detail'); }
+function select(o) { if (J.on) stopJourney(); $('#yearcard').hidden = true; S.sel = o; if (S.view === 'sky' && o?.kind === 'star') lookAt(o, S.skyT ?? Date.now()); renderDetail(); openPanel('detail'); }
 
 // ---------- a chosen time on the lifeline strip ----------
 const monthYear = t => new Date(t).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
@@ -209,6 +209,7 @@ const life = createLife($('#life canvas'), S, {
   label: t => `${new Date(t).getFullYear()} · ${ageYears(t)} ${ageYears(t) === 1 ? 'Jahr' : 'Jahre'}`,
 });
 function selectYear(time) {
+  if (J.on) stopJourney();
   const y = { kind: 'year', _t: time, cat: 'freude', title: monthYear(time) };
   if (S.view === 'space' && cam.focus && (cam.focus.kind === 'year' || cam.focus._t)) cam.focus = y;     // already travelling along the lifeline: stay on it
   S.sel = y; closePanel('detail'); renderYear();
@@ -233,6 +234,80 @@ function renderYear() {
   $$('[data-item]', el).forEach(a => a.onclick = () => select(S.items.find(i => i.id === a.dataset.item)));
   if ($('#yfly')) $('#yfly').onclick = () => flyTo(y);
 }
+
+// ---------- the guided journey through her life ----------
+const J = { on: false, list: [], i: 0, paused: false, timer: 0 };
+function stations() {
+  const list = S.items.filter(i => i._t <= S.t);
+  if (list.length < 8) {                       // few moments so far: her round birthdays give the journey its rhythm
+    for (let n = 10; n <= 50; n += 10) {
+      const b = new Date(S.birth), d = new Date(b.getFullYear() + n, b.getMonth(), b.getDate(), 12).getTime();
+      if (d < S.death && !list.some(i => Math.abs(i._t - d) < YEAR / 2)) list.push({ id: 'auto' + n, auto: true, title: `${n}. Geburtstag`, date: new Date(d).toISOString().slice(0, 10), _t: d, cat: 'freude' });
+    }
+    list.sort((a, b) => a._t - b._t);
+  }
+  return [...list, { end: true }];
+}
+function startJourney(from = 0) {
+  if (S.view !== 'space') setView('space');
+  $$('.panel').forEach(p => { p.hidden = true; }); syncDock();
+  Object.assign(J, { on: true, list: stations(), i: from, paused: false });
+  document.body.classList.add('journey'); $('#play').textContent = '■ Reise beenden';
+  showStation();
+}
+function stopJourney() {
+  clearTimeout(J.timer); J.on = false;
+  document.body.classList.remove('journey'); $('#journey').hidden = true; $('#play').textContent = '▶ Ihr Leben erleben';
+}
+function showStation() {
+  clearTimeout(J.timer);
+  const o = J.list[J.i], el = $('#journey'), n = J.list.length;
+  let h, secs;
+  if (o.end) {
+    goHome(); S.sel = null;
+    cam.target = clampScale(fit(Math.max((S.t - S.birth) / YEAR, 20) * 1.08, W, H));
+    h = `<div class="jbody"><div><p class="meta">In diesem Augenblick</p><h3>Ihr Licht reist weiter</h3>
+      <p>Jeder dieser Momente ist noch unterwegs. Gerade jetzt sehen ${litStars().length} Sterne dieser Karte Anna – jeder an einem anderen Tag ihres Lebens –, und mit jeder Sekunde kommen 299.792 Kilometer hinzu.</p>
+      <p class="muted">Nichts davon geht verloren.</p></div></div>`;
+    secs = 0;
+  } else {
+    S.sel = o; cam.focus = o; cam.touched = performance.now();
+    cam.target = clampScale(fit(o._e ? Math.max(8, (Math.min(o._e, S.t) - o._t) / YEAR * 0.8) : 8, W, H));
+    const d = (S.t - o._t) / YEAR, by = S.stars.map(s => [Math.abs(s.d - d), s]).sort((a, b) => a[0] - b[0])[0], next = S.stars.find(s => s.d > d);
+    const where = o._e ? `Das Licht dieser Zeit füllt den Raum zwischen <b>${fmtDist(Math.max(0, (S.t - o._e) / YEAR))}</b> und <b>${fmtDist(d)}</b> Entfernung.`
+      : by && by[0] < 0.75 ? `Dieses Licht ist jetzt <b>${fmtDist(d)}</b> entfernt – gerade bei <b>${esc(by[1].n)}</b>.`
+        : `Dieses Licht ist jetzt <b>${fmtDist(d)}</b> entfernt${next ? ` und erreicht in ${dur((next.d - d) * YEAR)} <b>${esc(next.n)}</b>` : ''}.`;
+    const ph = o.photos || [];
+    h = `<div class="jbody">${ph.length ? `<figure><img data-photo="${esc(ph[0])}" alt="">${ph.length > 1 ? `<small>${ph.length} Fotos</small>` : ''}</figure>` : ''}
+      <div><p class="meta">${J.i + 1} von ${n - 1} · ${o._e ? range(o) : fmtWhen(o.date)}${inLife(o._t) && o.id !== 'birth' ? ` · ${age(o._t, 'war').replace(/^Anna war /, '').replace(/ alt\.$/, '')}` : ''}</p>
+      <h3>${esc(o.title)}</h3>${o.text ? `<p class="jtext">${esc(o.text)}</p>` : ''}<p>${where}</p></div></div>`;
+    secs = Math.min(24, 8 + (o.text || '').length / 28 + ph.length * 3);
+  }
+  el.innerHTML = `<div class="bar">${secs ? `<i style="animation-duration:${secs}s"></i>` : ''}</div>${h}
+    <div class="row"><button data-j="prev" ${J.i ? '' : 'disabled'}>◀ Zurück</button>
+      ${o.end ? '<button data-j="again">Noch einmal</button>' : `<button data-j="pause">${J.paused ? '▶ Weiter abspielen' : 'Pause'}</button><button data-j="next" class="primary">Weiter ▶</button>`}
+      ${o.end || o.auto ? '' : '<button data-j="more">Ganz ansehen</button>'}<button class="x" aria-label="Reise beenden">×</button></div>`;
+  el.classList.toggle('paused', J.paused); el.hidden = false; hydrate(el); life.draw();
+  $('.x', el).onclick = stopJourney;
+  $$('[data-j]', el).forEach(b => b.onclick = () => {
+    const a = b.dataset.j;
+    if (a === 'prev') { J.i--; showStation(); }
+    else if (a === 'next') { J.i++; showStation(); }
+    else if (a === 'again') { J.i = 0; J.paused = false; showStation(); }
+    else if (a === 'pause') { J.paused = !J.paused; showStation(); }
+    else if (a === 'more') { stopJourney(); select(o); }
+  });
+  if (secs && !J.paused) J.timer = setTimeout(() => { J.i++; showStation(); }, secs * 1000);
+}
+$('#play').onclick = () => (J.on ? stopJourney() : startJourney());
+addEventListener('keydown', e => {
+  if (e.target.closest('input, textarea, select')) return;
+  if (e.key === 'Escape') { if (!$('#lightbox').hidden) $('#lightbox').hidden = true; else if (J.on) stopJourney(); else { $$('.panel').forEach(p => { p.hidden = true; }); syncDock(); } }
+  if (!J.on) return;
+  if (e.key === 'ArrowRight' && J.i < J.list.length - 1) { J.i++; showStation(); }
+  if (e.key === 'ArrowLeft' && J.i > 0) { J.i--; showStation(); }
+  if (e.key === ' ') { e.preventDefault(); J.paused = !J.paused; showStation(); }
+});
 
 // photos are fetched (and decrypted) on demand
 const urls = new Map();
@@ -525,6 +600,8 @@ async function init() {
   const want = /p=(\w+)/.exec(location.hash)?.[1], pickName = /sel=([^&]+)/.exec(location.hash)?.[1];
   const z = /z=(\w+)/.exec(location.hash)?.[1];
   if (z) { $(`#zoom [data-zoom=${z}]`)?.click(); cam.scale = cam.target; }
+  const rs = /reise=?(\d*)/.exec(location.hash);
+  if (rs) { startJourney(+rs[1] || 0); J.paused = true; showStation(); cam.scale = cam.target; cam.c = [0, 0, (S.t - (S.sel?._t || S.t)) / YEAR]; }
   const yr = /jahr=(\d+)/.exec(location.hash)?.[1];
   if (yr) selectYear(new Date(+yr, 6, 1).getTime());
   const go = /go=([^&]+)/.exec(location.hash)?.[1];
