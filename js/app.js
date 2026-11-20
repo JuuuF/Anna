@@ -71,7 +71,7 @@ cv.addEventListener('pointermove', e => {
     pinch = dist;
   } else {
     cam.yaw += dx * 0.006;
-    cam.pitch = Math.max(0.06, Math.min(1.5, cam.pitch + dy * 0.006));      // always seen from above, never from below
+    cam.pitch = Math.max(-1.5, Math.min(1.5, cam.pitch + dy * 0.006));
   }
 });
 const release = e => {
