@@ -135,7 +135,7 @@ $('#clouds').onclick = () => { weather.on = !weather.on; try { localStorage.setI
 // the sky box folds away; on phones it starts folded so it is not in the way
 const foldSky = closed => { $('#skybar').classList.toggle('closed', closed); $('#skytoggle').setAttribute('aria-expanded', String(!closed)); };
 $('#skytoggle').onclick = () => foldSky(!$('#skybar').classList.contains('closed'));
-foldSky(innerWidth <= 760);
+foldSky(innerWidth <= 1100);
 
 // the bottom bar scrolls sideways when it does not fit: fade the cut-off edge and show an arrow there
 const dock = $('#dock'), arrows = $$('.dockhint');
