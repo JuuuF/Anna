@@ -40,7 +40,7 @@ export function drawSpace(ctx, W, H, S) {
   if (Math.abs(Math.log(cam.target / cam.scale)) < 0.01) cam.ease = 0.12;
   if (cam.focus) cam.tc = [...posOf(cam.focus, t)];
   cam.c = cam.c.map((c, i) => (Math.abs(cam.tc[i] - c) * cam.scale < 0.05 ? cam.tc[i] : c + (cam.tc[i] - c) * 0.1));
-  if (performance.now() - cam.touched > 5000 && !S.hover) cam.yaw += 0.0006;
+  if (performance.now() - cam.touched > 5000 && !S.hover && !S.calm) cam.yaw += 0.0006;
   const sc = cam.scale, F = 1.05 * Math.max(W, H);     // small F = strong perspective
   const cyaw = Math.cos(cam.yaw), syaw = Math.sin(cam.yaw), cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
   const rot = v => {

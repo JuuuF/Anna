@@ -8,7 +8,7 @@ import { drawSky, skyCam, lookAt, starAltAz, weather, loadWeather, weatherAt } f
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
-const S = { t: Date.now(), offset: 0, view: 'space', sel: null, hover: null, stars: [], sky: null, items: [], birth: 0, death: 0, skyT: null };
+const S = { calm: matchMedia('(prefers-reduced-motion: reduce)').matches, t: Date.now(), offset: 0, view: 'space', sel: null, hover: null, stars: [], sky: null, items: [], birth: 0, death: 0, skyT: null };
 const cv = $('#view'), ctx = cv.getContext('2d');
 let W = 0, H = 0, hits = [];
 
@@ -331,6 +331,7 @@ function hydrate(root) {
   }
 }
 $('#lightbox').onclick = () => { $('#lightbox').hidden = true; };
+$('#savePic').onclick = () => cv.toBlob(b => Object.assign(document.createElement('a'), { href: URL.createObjectURL(b), download: `annas-licht-${new Date().toISOString().slice(0, 10)}.png` }).click());
 const lock = i => (i.vis === 'private' ? '<span class="tag">nur Familie &amp; Freunde</span>' : '');
 const range = i => (i._e ? `${fmtWhen(i.date)} – ${i.end ? fmtWhen(i.end) : 'zuletzt'}` : fmtWhen(i.date));
 
@@ -657,7 +658,7 @@ async function init() {
   if (want) { if (panel(want)) openPanel(want); } else if (!seen) setTimeout(() => { if (!J.on && $$('.panel').every(p => p.hidden)) openPanel('about'); }, 6500);
   const mid = /\bm=(\w+)/.exec(location.hash)?.[1];
   if (mid && S.items.find(i => i.id === mid)) select(S.items.find(i => i.id === mid));
-  if (!location.hash && S.view === 'space' && W) {       // opening: start close to the Earth and glide out until her whole light is in view
+  if (!location.hash && S.view === 'space' && W && !S.calm) {       // opening: start close to the Earth and glide out until her whole light is in view
     cam.target = clampScale(fit(Math.max((S.t - S.birth) / YEAR, 20) * 1.08, W, H)); cam.scale = cam.target * 28; cam.ease = 0.022;
   }
   if (pickName) select(S.stars.find(s => s.n === decodeURIComponent(pickName)) || bodies.find(b => b.name === decodeURIComponent(pickName)) || S.items.find(i => i.title === decodeURIComponent(pickName)));

@@ -60,12 +60,14 @@ export function createLife(cv, S, { onYear, onItem, label }) {
       ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(x, 18, 1, y - 14);
       bubble(x, label(hover), false);
     }
-    const at = S.sel?.kind === 'year' ? S.sel._t : S.sel?._t && !S.sel._e ? S.sel._t : null;
+    // a chosen time, a chosen moment – or the day a chosen star is watching right now
+    const star = S.sel?.kind === 'star' ? S.sel : null;
+    const at = star ? S.t - star.d * 365.25 * 864e5 : S.sel?.kind === 'year' ? S.sel._t : S.sel?._t && !S.sel._e ? S.sel._t : null;
     if (at != null && at >= S.birth && at <= S.death) {
       const x = xOf(at);
       ctx.fillStyle = '#f3c98b'; ctx.fillRect(x - 1, 18, 2, y - 12);
       if (S.sel.kind === 'year') { ctx.beginPath(); ctx.arc(x, y, 5, 0, 7); ctx.fill(); }
-      bubble(x, label(at), true);
+      bubble(x, (star ? star.n + ' sieht ' : '') + label(at), true);
     }
   }
 

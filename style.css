@@ -89,7 +89,7 @@ body.journey #hint, body.journey #yearcard, body.journey .chips button:not(#play
 .panel.left { left: 18px; }
 .panel.right { right: 18px; top: 120px; max-height: calc(100vh - 262px); }
 body.sky .panel.right { top: 176px; max-height: calc(100vh - 318px); }
-.panel.bottom { left: 50%; top: auto; bottom: 78px; transform: translateX(-50%); width: 440px; }
+.panel.bottom { left: 50%; top: auto; bottom: 134px; transform: translateX(-50%); width: 440px; }
 .panel > header { display: flex; align-items: center; justify-content: space-between; padding: 10px 10px 8px 18px; cursor: move; border-bottom: 1px solid var(--line); touch-action: none; }
 .panel h2 { font-weight: normal; font-size: 19px; margin: 0; color: var(--gold); }
 .panel h3 { font-weight: normal; font-size: 16px; margin: 16px 0 4px; color: var(--gold); }

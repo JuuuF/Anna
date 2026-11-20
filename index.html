@@ -7,9 +7,16 @@
   <meta name="description" content="Eine Erinnerungsseite für Familie und Freunde.">
   <meta name="theme-color" content="#0a0e22">
   <title>Annas Licht</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Annas Licht">
   <!-- One version for all files: raise it with every change (tools/bump.sh) so browsers never mix old and new files. -->
-  <link rel="stylesheet" href="style.css?v=202611210051">
-  <script type="importmap">{ "imports": { "./js/util.js": "./js/util.js?v=202611210051", "./js/astro.js": "./js/astro.js?v=202611210051", "./js/store.js": "./js/store.js?v=202611210051", "./js/space.js": "./js/space.js?v=202611210051", "./js/life.js": "./js/life.js?v=202611210051", "./js/life.js": "./js/life.js?v=202611210051", "./js/sky.js": "./js/sky.js?v=202611210051" } }</script>
+  <link rel="stylesheet" href="style.css?v=202611210052">
+  <script type="importmap">{ "imports": { "./js/util.js": "./js/util.js?v=202611210052", "./js/astro.js": "./js/astro.js?v=202611210052", "./js/store.js": "./js/store.js?v=202611210052", "./js/space.js": "./js/space.js?v=202611210052", "./js/life.js": "./js/life.js?v=202611210052", "./js/life.js": "./js/life.js?v=202611210052", "./js/sky.js": "./js/sky.js?v=202611210052" } }</script>
 </head>
 <body>
   <canvas id="view" aria-label="Karte: Wo Annas Licht gerade unterwegs ist"></canvas>
@@ -84,6 +91,9 @@
       <h3>Wie wahr ist das?</h3>
       <p>Das Licht ist wirklich unterwegs, und die Sterne stehen wirklich dort. Sehen könnte man Anna aus dieser Entfernung mit keinem Teleskop, das wir uns vorstellen können –
         aber das Licht trägt jeden ihrer Tage weiter, für immer.</p>
+      <h3>Zum Mitnehmen</h3>
+      <p><button id="savePic">Diese Ansicht als Bild speichern</button></p>
+      <p class="muted">Auf dem Handy oder Tablet lässt sich die Seite wie eine App ablegen: im Menü des Browsers „Zum Startbildschirm hinzufügen“ wählen.</p>
       <p class="fine">Die Entfernungen der Sterne sind die besten bekannten Messwerte; ein Ankunftstag kann deshalb in Wirklichkeit etwas früher oder später liegen.
         Sterndaten: HYG-Datenbank (Hipparcos, Yale, Gliese; CC BY-SA 4.0), NASA Exoplanet Archive. Sternbilder: d3-celestial.</p>
     </div>
@@ -91,6 +101,6 @@
   <section class="panel left" id="p-login" hidden><header><h2>Für Familie &amp; Freunde</h2><button class="x" aria-label="Schließen">×</button></header><div class="body"></div></section>
 
   <div id="lightbox" hidden><img alt=""></div>
-  <script type="module" src="js/app.js?v=202611210051"></script>
+  <script type="module" src="js/app.js?v=202611210052"></script>
 </body>
 </html>
