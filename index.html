@@ -2,56 +2,82 @@
 <html lang="de">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Wo ist Anna?</title>
-  <meta name="description" content="Eine Übersicht, wo sich Anna gerade befindet.">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📍</text></svg>">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="description" content="Eine Erinnerungsseite für Familie und Freunde.">
+  <meta name="theme-color" content="#0a0e22">
+  <title>Annas Licht</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="nav">
-    <a class="brand" href="#">📍 Anna</a>
-    <nav>
-      <a href="#jetzt">Jetzt</a>
-      <a href="#stationen">Stationen</a>
-      <button id="theme-toggle" aria-label="Farbschema wechseln">🌓</button>
-    </nav>
+  <canvas id="view" aria-label="Karte: Wo Annas Licht gerade unterwegs ist"></canvas>
+
+  <header id="head">
+    <h1>Annas Licht</h1>
+    <p id="lead"></p>
   </header>
 
-  <main>
-    <section class="hero">
-      <div class="blob blob-a"></div>
-      <div class="blob blob-b"></div>
-      <p class="eyebrow">Live-Übersicht</p>
-      <h1>Wo ist <span class="accent">Anna</span>?</h1>
-      <p class="lead">Eine kleine Seite, die zeigt, wo sich Anna gerade befindet – und wo sie schon war.</p>
-      <a class="btn" href="#jetzt">Zum aktuellen Ort ↓</a>
-    </section>
+  <div id="zoom" class="chips">
+    <button data-zoom="life" title="Ihr ganzes Leben">Ihr ganzes Leben</button>
+    <button data-zoom="near" title="Die nächsten Sterne">Nachbarsterne</button>
+    <button data-zoom="last" title="Wo ihr letztes Licht gerade ist">Letztes Licht</button>
+    <button data-zoom="solar" title="Unser Sonnensystem">Sonnensystem</button>
+    <button data-zoom="in" aria-label="Näher heran">+</button>
+    <button data-zoom="out" aria-label="Weiter weg">−</button>
+  </div>
 
-    <section id="jetzt" class="current reveal">
-      <div class="card current-card">
-        <span class="pulse" aria-hidden="true"></span>
-        <div>
-          <p class="label">Aktuell in</p>
-          <h2 id="current-place">Lädt …</h2>
-          <p class="muted" id="current-since"></p>
-        </div>
-      </div>
-    </section>
+  <div id="skybar" hidden>
+    <strong>Der Himmel über Neumünster</strong>
+    <span id="skywhen"></span>
+    <input type="range" id="skytime" min="240" max="1200" step="5" aria-label="Uhrzeit">
+    <button id="skynow">Jetzt</button>
+  </div>
 
-    <section id="stationen" class="reveal">
-      <h2 class="section-title">Stationen</h2>
-      <ol class="timeline" id="timeline"></ol>
-    </section>
-  </main>
+  <p id="hint"></p>
 
-  <footer>
-    <p>Gebaut mit ❤️ und GitHub Pages · <span id="year"></span></p>
-  </footer>
+  <nav id="dock">
+    <div class="seg">
+      <button data-view="space" class="on">Weltraum</button>
+      <button data-view="sky">Nachthimmel</button>
+    </div>
+    <button data-panel="moments">Momente</button>
+    <button data-panel="soon">Demnächst</button>
+    <button data-panel="time">Zeitreise</button>
+    <button data-panel="about">Über diese Seite</button>
+    <button data-panel="login" id="loginBtn">Anmelden</button>
+  </nav>
 
-  <script src="script.js"></script>
+  <section class="panel right" id="p-detail" hidden><header><h2>Auswahl</h2><button class="x" aria-label="Schließen">×</button></header><div class="body"></div></section>
+  <section class="panel left" id="p-moments" hidden><header><h2>Momente ihres Lebens</h2><button class="x" aria-label="Schließen">×</button></header><div class="body"></div></section>
+  <section class="panel left" id="p-soon" hidden><header><h2>Wo ihr Licht ankommt</h2><button class="x" aria-label="Schließen">×</button></header><div class="body"></div></section>
+  <section class="panel bottom" id="p-time" hidden><header><h2>Zeitreise</h2><button class="x" aria-label="Schließen">×</button></header>
+    <div class="body">
+      <p class="muted">Wie sah es früher aus – und wohin reist ihr Licht noch?</p>
+      <div class="row"><input type="range" id="offset" min="-60" max="60" step="0.02" value="0"><button id="resetTime">Jetzt</button></div>
+      <p id="when">Jetzt</p>
+    </div>
+  </section>
+  <section class="panel left" id="p-about" hidden><header><h2>Über diese Seite</h2><button class="x" aria-label="Schließen">×</button></header>
+    <div class="body">
+      <p>Alles Licht, das Anna in ihrem Leben berührt hat, ist noch unterwegs. Es reist mit Lichtgeschwindigkeit hinaus ins All –
+        und wer von einem fernen Stern aus zur Erde blickt, sieht sie dort in diesem Augenblick: als Kind, an ihrem Hochzeitstag, lachend im Sommer.</p>
+      <p>Diese Karte zeigt, wo welcher Moment ihres Lebens gerade zu sehen ist. Ein Stern, der 25 Lichtjahre entfernt ist, sieht die Erde so, wie sie vor 25 Jahren war.</p>
+      <p><strong>Für Familie und Freunde.</strong> Diese Seite ist ein persönliches Geschenk. Öffentlich sichtbar sind nur wenige Eckdaten.
+        Persönliche Erinnerungen und Fotos sind verschlüsselt und nur mit einem Zugang lesbar – wer Anna kannte und mitlesen oder etwas beitragen möchte, wendet sich bitte an die Familie.</p>
+      <h3>Zeichenerklärung</h3>
+      <p><span class="dot lit"></span> Stern, der Anna gerade sieht (mit dem Jahr, das dort zu sehen ist)<br>
+        <span class="dot"></span> Stern, den ihr Licht noch nicht erreicht hat<br>
+        <span class="dot hz"></span> Stern mit einem möglicherweise lebensfreundlichen Planeten</p>
+      <h3>Wie wahr ist das?</h3>
+      <p>Das Licht ist wirklich unterwegs, und die Sterne stehen wirklich dort. Sehen könnte man Anna aus dieser Entfernung mit keinem Teleskop, das wir uns vorstellen können –
+        aber das Licht trägt jeden ihrer Tage weiter, für immer.</p>
+      <p class="fine">Die Entfernungen der Sterne sind die besten bekannten Messwerte; ein Ankunftstag kann deshalb in Wirklichkeit etwas früher oder später liegen.
+        Sterndaten: HYG-Datenbank (Hipparcos, Yale, Gliese; CC BY-SA 4.0), NASA Exoplanet Archive. Sternbilder: d3-celestial.</p>
+    </div>
+  </section>
+  <section class="panel left" id="p-login" hidden><header><h2>Für Familie &amp; Freunde</h2><button class="x" aria-label="Schließen">×</button></header><div class="body"></div></section>
+
+  <div id="lightbox" hidden><img alt=""></div>
+  <script type="module" src="js/app.js"></script>
 </body>
 </html>
