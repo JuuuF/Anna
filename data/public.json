@@ -4,5 +4,20 @@
   "birth": "1970-04-16",
   "death": "2026-08-27T03:00"
  },
- "items": []
+ "items": [
+  {
+   "cat": "liebe",
+   "photos": [
+    "media/68fb89605e62c9a0.jpg"
+   ],
+   "title": "Hochzeit mit Stephan",
+   "date": "2019-11-22T10:00",
+   "period": false,
+   "end": "",
+   "text": "Am 22.11.2019 haben Stephan und Anne am 50. Geburtstag von Stephan geheiratet.",
+   "id": "d86de921c082f731",
+   "by": "Stephan",
+   "updated": "2026-11-20T23:17:46.071Z"
+  }
+ ]
 }
