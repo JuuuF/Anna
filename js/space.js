@@ -2,7 +2,7 @@
 import { YEAR, LS, AU, catColor, starColor, placeLabels } from './util.js';
 import { bodies, orbits, sun, vec } from './astro.js';
 
-export const cam = { yaw: 0.7, pitch: 0.42, scale: 0, target: 0, c: [0, 0, 0], touched: 0 };
+export const cam = { yaw: 0.7, pitch: 0.5, scale: 0, target: 0, c: [0, 0, 0], touched: 0 };
 export const fit = (ly, W, H) => Math.min(W, H) * 0.4 / ly;
 export const clampScale = s => Math.min(4e9, Math.max(1.5, s));
 
@@ -20,25 +20,29 @@ export function drawSpace(ctx, W, H, S) {
   if (!cam.scale) cam.scale = cam.target = fit(Math.max(dOut, 20) * 1.08, W, H);
   cam.scale = Math.exp(Math.log(cam.scale) + (Math.log(cam.target) - Math.log(cam.scale)) * 0.12);
   if (performance.now() - cam.touched > 5000 && !S.hover) cam.yaw += 0.0006;
-  const sc = cam.scale, F = 1.6 * Math.max(W, H);
+  const sc = cam.scale, F = 1.05 * Math.max(W, H);     // small F = strong perspective
   const cyaw = Math.cos(cam.yaw), syaw = Math.sin(cam.yaw), cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
   const rot = v => {
     const x = v[0] * cyaw - v[1] * syaw, y = v[0] * syaw + v[1] * cyaw;
-    return [x, v[2] * cp - y * sp, y * cp + v[2] * sp];            // right, up, depth
+    return [x, v[2] * cp + y * sp, y * cp - v[2] * sp];            // right, up, depth – the camera looks down from the north
   };
   // -> [screen x, screen y, perspective factor] or null if behind the viewer
   const proj = v => {
     const [x, up, depth] = rot([v[0] - cam.c[0], v[1] - cam.c[1], v[2] - cam.c[2]]);
     const f = F / (F + depth * sc);
-    return f > 0 && f < 6 ? [cx + x * sc * f, cy - up * sc * f, f] : null;
+    return f > 0 && f < 8 ? [cx + x * sc * f, cy - up * sc * f, f, depth] : null;
   };
+  // depth cues: what is far away gets smaller and dimmer
+  const shade = p => Math.min(1, Math.max(0.28, (p[2] - 0.6) / 0.45));
+  const grow = p => Math.min(2.2, Math.max(0.55, p[2]));
   const onScreen = p => p && p[0] > -40 && p[0] < W + 40 && p[1] > -40 && p[1] < H + 40;
-  const path = (pts, close) => {
+  // side: 0 = everything, -1 = only the half in front of depth d0, 1 = only the half behind it
+  const path = (pts, close, side = 0, d0 = 0) => {
     ctx.beginPath();
     let pen = false;
     for (const v of pts) {
       const p = proj(v);
-      if (!p) { pen = false; continue; }
+      if (!p || (side < 0 && p[3] > d0) || (side > 0 && p[3] <= d0)) { pen = false; continue; }
       pen ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]);
       pen = true;
     }
@@ -68,8 +72,19 @@ export function drawSpace(ctx, W, H, S) {
   // ---- the light of her lifetime ----
   const o = proj([0, 0, 0]);
   const big = 6 * Math.max(W, H);
+  const sil = r => {                                   // outline radius of a sphere around Earth; huge once the camera is inside it
+    const Rpx = r * sc, D = F + (o ? o[3] : 0) * sc;
+    return Rpx >= D * 0.985 ? big : Math.min(big, F * Rpx / Math.sqrt(D * D - Rpx * Rpx));
+  };
+  const twoPass = (pts, color, back, front, width = 1) => {    // far half faint, near half clear
+    ctx.strokeStyle = color; ctx.lineWidth = width;
+    ctx.globalAlpha = back; path(pts, false, 1, o ? o[3] : 0); ctx.stroke();
+    ctx.globalAlpha = front; path(pts, false, -1, o ? o[3] : 0); ctx.stroke();
+    ctx.globalAlpha = 1;
+  };
   if (o && dOut > 0) {
-    const rOut = Math.min(dOut * sc * o[2], big), rIn = Math.min(dIn * sc * o[2], rOut);
+    const rOut = sil(dOut), rIn = Math.min(sil(dIn), rOut);
+    if (rOut < big) { ctx.fillStyle = 'rgba(243,201,139,.055)'; path(circle(dOut), true); ctx.fill(); }      // the plane all stalks stand on
     const g = ctx.createRadialGradient(o[0], o[1], rIn, o[0], o[1], Math.max(rOut, rIn + 1));
     g.addColorStop(0, 'rgba(243,201,139,.20)'); g.addColorStop(.55, 'rgba(240,185,150,.10)');
     g.addColorStop(.9, 'rgba(236,172,165,.17)'); g.addColorStop(1, 'rgba(233,165,173,.34)');
@@ -81,9 +96,8 @@ export function drawSpace(ctx, W, H, S) {
     if (rOut < big) { ctx.beginPath(); ctx.arc(o[0], o[1], rOut, 0, 2 * Math.PI); ctx.stroke(); }
     if (rIn > 2 && rIn < big) { ctx.strokeStyle = 'rgba(243,201,139,.5)'; ctx.beginPath(); ctx.arc(o[0], o[1], rIn, 0, 2 * Math.PI); ctx.stroke(); }
     // great circles make the sphere readable as a sphere
-    ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(243,201,139,.16)';
-    if (rOut < big) for (const plane of [0, 1, 2]) { path(circle(dOut, plane)); ctx.stroke(); }
-    if (rIn > 30 && rIn < big) for (const plane of [0, 1, 2]) { path(circle(dIn, plane)); ctx.stroke(); }
+    if (rOut < big) for (const plane of [0, 1, 2]) twoPass(circle(dOut, plane), 'rgb(243,201,139)', 0.07, plane ? 0.3 : 0.45, plane ? 1 : 1.4);
+    if (rIn > 30 && rIn < big) for (const plane of [0, 1, 2]) twoPass(circle(dIn, plane), 'rgb(243,201,139)', 0.07, 0.3);
   }
 
   // ---- rings on the reference plane: distance = years ago ----
@@ -92,8 +106,7 @@ export function drawSpace(ctx, W, H, S) {
   for (const [d, text] of ringList) {
     const px = d * sc;
     if (px < 26 || px > 2.5 * Math.max(W, H)) continue;
-    ctx.strokeStyle = 'rgba(255,255,255,.09)'; ctx.lineWidth = 1;
-    path(circle(d)); ctx.stroke();
+    twoPass(circle(d), '#fff', 0.05, 0.17);
     const a = -cam.yaw + Math.PI / 2 * 0.25, p = proj([d * Math.cos(a), d * Math.sin(a), 0]);       // label where the ring is closest to the viewer's right
     const q = proj([d * Math.cos(-cam.yaw - Math.PI / 2), d * Math.sin(-cam.yaw - Math.PI / 2), 0]);
     const at = onScreen(q) ? q : p;
@@ -102,8 +115,8 @@ export function drawSpace(ctx, W, H, S) {
   const oort = 0.8 * sc;
   if (o && oort > 60 && oort < 3 * Math.max(W, H)) {
     ctx.setLineDash([3, 6]); ctx.strokeStyle = 'rgba(160,190,230,.25)';
-    ctx.beginPath(); ctx.arc(o[0], o[1], oort * o[2], 0, 2 * Math.PI); ctx.stroke(); ctx.setLineDash([]);
-    labels.push({ x: o[0], y: o[1] - oort * o[2] - 6, text: 'Oortsche Wolke', color: 'rgba(160,190,230,.7)', font: '11px system-ui, sans-serif', prio: 2 });
+    ctx.beginPath(); ctx.arc(o[0], o[1], sil(0.8), 0, 2 * Math.PI); ctx.stroke(); ctx.setLineDash([]);
+    labels.push({ x: o[0], y: o[1] - sil(0.8) - 6, text: 'Oortsche Wolke', color: 'rgba(160,190,230,.7)', font: '11px system-ui, sans-serif', prio: 2 });
   }
 
   // ---- solar system ----
@@ -136,24 +149,30 @@ export function drawSpace(ctx, W, H, S) {
     const lit = s.d <= dOut && s.d >= dIn, on = S.sel === s || S.hover === s;
     if (!onScreen(p) || s.d * sc < 5) continue;
     const foot = proj([s.v[0], s.v[1], 0]);
+    const sh = shade(p);
     if (foot && sc * s.d > 30) {
-      ctx.strokeStyle = lit ? 'rgba(243,201,139,.16)' : 'rgba(255,255,255,.07)'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(foot[0], foot[1]); ctx.stroke();
+      ctx.globalAlpha = sh; ctx.lineWidth = 1;
+      ctx.strokeStyle = lit ? 'rgba(243,201,139,.3)' : 'rgba(255,255,255,.12)';
+      if (s.v[2] < 0) ctx.setLineDash([2, 3]);                     // below the plane
+      ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(foot[0], foot[1]); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = ctx.strokeStyle; ctx.fillRect(foot[0] - 1, foot[1] - 1, 2, 2);
+      ctx.globalAlpha = 1;
     }
-    const r = Math.min(5, Math.max(1.5, 3.5 - 0.42 * s.mag)) * Math.min(1.6, Math.max(0.7, p[2]));
+    const r = Math.min(5, Math.max(1.5, 3.5 - 0.42 * s.mag)) * grow(p);
     if (lit) {
       const g = ctx.createRadialGradient(p[0], p[1], 0, p[0], p[1], r * 4.5);
-      g.addColorStop(0, 'rgba(255,225,170,.45)'); g.addColorStop(1, 'rgba(255,225,170,0)');
+      g.addColorStop(0, `rgba(255,225,170,${0.5 * sh})`); g.addColorStop(1, 'rgba(255,225,170,0)');
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p[0], p[1], r * 4.5, 0, 7); ctx.fill();
     }
-    ctx.globalAlpha = lit ? 1 : 0.5; ctx.fillStyle = starColor(s.ci);
+    ctx.globalAlpha = (lit ? 1 : 0.55) * sh; ctx.fillStyle = starColor(s.ci);
     ctx.beginPath(); ctx.arc(p[0], p[1], on ? r + 1.5 : r, 0, 7); ctx.fill();
     if (s.hz) { ctx.strokeStyle = 'rgba(150,225,180,.8)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(p[0], p[1], r + 3.5, 0, 7); ctx.stroke(); }
     ctx.globalAlpha = 1;
     if (on) { ctx.strokeStyle = '#f3c98b'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(p[0], p[1], r + 8, 0, 7); ctx.stroke(); }
     const year = lit ? ' · ' + new Date(t - s.d * YEAR).getFullYear() : '';
     labels.push({ x: p[0], y: p[1] - r - 6, text: s.n + year, color: lit ? 'rgba(255,240,215,.95)' : 'rgba(200,205,225,.6)',
-      prio: on ? 100 : (lit ? 20 : 8) + (s.hz ? 3 : 0) - s.mag * 0.8, force: on });
+      alpha: on ? 1 : Math.max(0.4, sh), font: `${Math.round(Math.min(14, Math.max(10, 11.5 * p[2])))}px system-ui, sans-serif`,
+      prio: on ? 100 : (lit ? 20 : 8) + (s.hz ? 3 : 0) - s.mag * 0.8 + p[2] * 6, force: on });
     hits.push({ x: p[0], y: p[1], o: s });
   }
 
@@ -168,8 +187,8 @@ export function drawSpace(ctx, W, H, S) {
     const d1 = (t - sel._t) / YEAR, d0 = Math.max(0, (t - (sel._e ?? sel._t)) / YEAR);
     if (d1 > 0) {
       ctx.fillStyle = catColor(sel.cat) + '26'; ctx.strokeStyle = catColor(sel.cat); ctx.lineWidth = 1.2; ctx.setLineDash([5, 5]);
-      ctx.beginPath(); ctx.arc(o[0], o[1], Math.min(d1 * sc * o[2], big), 0, 2 * Math.PI); ctx.closePath();
-      if (sel._e) { ctx.moveTo(o[0] + d0 * sc * o[2], o[1]); ctx.arc(o[0], o[1], Math.min(d0 * sc * o[2], big), 0, 2 * Math.PI); ctx.closePath(); ctx.fill('evenodd'); }
+      ctx.beginPath(); ctx.arc(o[0], o[1], sil(d1), 0, 2 * Math.PI); ctx.closePath();
+      if (sel._e) { ctx.moveTo(o[0] + sil(d0), o[1]); ctx.arc(o[0], o[1], sil(d0), 0, 2 * Math.PI); ctx.closePath(); ctx.fill('evenodd'); }
       ctx.stroke(); ctx.setLineDash([]);
       ctx.globalAlpha = 0.5; path(circle(d1)); ctx.stroke(); ctx.globalAlpha = 1;
     }

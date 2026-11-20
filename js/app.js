@@ -71,7 +71,7 @@ cv.addEventListener('pointermove', e => {
     pinch = dist;
   } else {
     cam.yaw += dx * 0.006;
-    cam.pitch = Math.max(-1.45, Math.min(1.45, cam.pitch + dy * 0.006));
+    cam.pitch = Math.max(0.06, Math.min(1.5, cam.pitch + dy * 0.006));      // always seen from above, never from below
   }
 });
 const release = e => {
@@ -406,7 +406,7 @@ async function init() {
   const want = /p=(\w+)/.exec(location.hash)?.[1], pickName = /sel=([^&]+)/.exec(location.hash)?.[1];
   const z = /z=(\w+)/.exec(location.hash)?.[1];
   if (z) { $(`#zoom [data-zoom=${z}]`)?.click(); cam.scale = cam.target; }
-  if (want) openPanel(want); else if (!seen) openPanel('about');
+  if (want && panel(want)) openPanel(want); else if (!seen) openPanel('about');
   if (pickName) select(S.stars.find(s => s.n === decodeURIComponent(pickName)) || bodies.find(b => b.name === decodeURIComponent(pickName)) || S.items.find(i => i.title === decodeURIComponent(pickName)));
 }
 init();
