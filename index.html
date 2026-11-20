@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wo ist Anna?</title>
+  <meta name="description" content="Eine Übersicht, wo sich Anna gerade befindet.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📍</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="nav">
+    <a class="brand" href="#">📍 Anna</a>
+    <nav>
+      <a href="#jetzt">Jetzt</a>
+      <a href="#stationen">Stationen</a>
+      <button id="theme-toggle" aria-label="Farbschema wechseln">🌓</button>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="blob blob-a"></div>
+      <div class="blob blob-b"></div>
+      <p class="eyebrow">Live-Übersicht</p>
+      <h1>Wo ist <span class="accent">Anna</span>?</h1>
+      <p class="lead">Eine kleine Seite, die zeigt, wo sich Anna gerade befindet – und wo sie schon war.</p>
+      <a class="btn" href="#jetzt">Zum aktuellen Ort ↓</a>
+    </section>
+
+    <section id="jetzt" class="current reveal">
+      <div class="card current-card">
+        <span class="pulse" aria-hidden="true"></span>
+        <div>
+          <p class="label">Aktuell in</p>
+          <h2 id="current-place">Lädt …</h2>
+          <p class="muted" id="current-since"></p>
+        </div>
+      </div>
+    </section>
+
+    <section id="stationen" class="reveal">
+      <h2 class="section-title">Stationen</h2>
+      <ol class="timeline" id="timeline"></ol>
+    </section>
+  </main>
+
+  <footer>
+    <p>Gebaut mit ❤️ und GitHub Pages · <span id="year"></span></p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
