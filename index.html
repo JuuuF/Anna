@@ -27,18 +27,19 @@
   </div>
 
   <div id="skybar" hidden>
-    <strong>Der Himmel über Neumünster</strong>
-    <span id="skywhen"></span>
-    <input type="range" id="skytime" min="240" max="1200" step="5" aria-label="Uhrzeit">
-    <button id="skynow">Jetzt</button>
-    <button data-look="around" title="Blick zum Horizont">Horizont</button>
-    <button data-look="all" title="Blick senkrecht nach oben">Zenit</button>
-    <button id="clouds" title="Aktuelle Bewölkung über Neumünster einblenden">Wolken</button>
-    <span id="cloudinfo"></span>
+    <button id="skytoggle" aria-expanded="true" title="Ein- oder ausklappen"><strong>Der Himmel über Neumünster</strong> <span id="skywhen"></span> <span class="chev">▾</span></button>
+    <div class="more">
+      <input type="range" id="skytime" min="240" max="1200" step="5" aria-label="Uhrzeit">
+      <button id="skynow">Jetzt</button>
+      <button id="clouds" title="Aktuelle Bewölkung über Neumünster ein- oder ausblenden">Wolken</button>
+      <span id="cloudinfo"></span>
+    </div>
   </div>
 
   <p id="hint"></p>
 
+  <button class="dockhint l" hidden aria-label="Weitere Knöpfe links">‹</button>
+  <button class="dockhint r" hidden aria-label="Weitere Knöpfe rechts">›</button>
   <nav id="dock">
     <div class="seg">
       <button data-view="space" class="on">Weltraum</button>

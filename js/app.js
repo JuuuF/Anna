@@ -131,11 +131,23 @@ function cloudInfo() {
     : !weather.hours ? '' : !w ? 'Für diese Uhrzeit gibt es keine Wettervorhersage.'
     : `Bewölkung über Neumünster: ${Math.round(w.all)} %${weather.on ? ' · Wolkenformen sind nachempfunden' : ''} · Wetterdaten: Open-Meteo`;
 }
-$('#clouds').onclick = () => { weather.on = !weather.on; try { localStorage.setItem('annas-licht-clouds', weather.on ? '1' : ''); } catch { /* ignore */ } cloudInfo(); };
-$$('#skybar [data-look]').forEach(b => b.onclick = () => {
-  const all = b.dataset.look === 'all';
-  Object.assign(skyCam, all ? { talt: 89.9 } : { talt: 0, tzoom: 1 });
-});
+$('#clouds').onclick = () => { weather.on = !weather.on; try { localStorage.setItem('annas-licht-clouds', weather.on ? 'an' : 'aus'); } catch { /* ignore */ } cloudInfo(); };
+// the sky box folds away; on phones it starts folded so it is not in the way
+const foldSky = closed => { $('#skybar').classList.toggle('closed', closed); $('#skytoggle').setAttribute('aria-expanded', String(!closed)); };
+$('#skytoggle').onclick = () => foldSky(!$('#skybar').classList.contains('closed'));
+foldSky(innerWidth <= 760);
+
+// the bottom bar scrolls sideways when it does not fit: fade the cut-off edge and show an arrow there
+const dock = $('#dock'), arrows = $$('.dockhint');
+function dockEdges() {
+  const left = dock.scrollLeft > 6, right = dock.scrollLeft + dock.clientWidth < dock.scrollWidth - 6;
+  dock.classList.toggle('more-left', left); dock.classList.toggle('more-right', right);
+  arrows[0].hidden = !left; arrows[1].hidden = !right;
+}
+dock.addEventListener('scroll', dockEdges, { passive: true }); addEventListener('resize', dockEdges);
+arrows[0].onclick = () => dock.scrollBy({ left: -dock.clientWidth * 0.7 });
+arrows[1].onclick = () => dock.scrollBy({ left: dock.clientWidth * 0.7 });
+setTimeout(dockEdges, 0);
 $('#skytime').oninput = e => setSkyTime(+e.target.value);
 $('#skynow').onclick = () => setSkyTime(null);
 
@@ -423,8 +435,8 @@ function renderAll() { renderDetail(); renderSoon(); renderMoments(); renderLogi
 async function init() {
   setView(location.hash.includes('himmel') ? 'sky' : 'space');
   setSkyTime(sunAltitude(Date.now()) < -6 ? null : 600);
-  try { weather.on = !!localStorage.getItem('annas-licht-clouds'); } catch { /* ignore */ }
-  if (location.hash.includes('wolken')) weather.on = true;
+  weather.on = true;                                   // clouds show unless someone switched them off
+  try { weather.on = localStorage.getItem('annas-licht-clouds') !== 'aus'; } catch { /* ignore */ }
   const wx = () => loadWeather().then(cloudInfo);
   wx(); setInterval(wx, 30 * 6e4);
   requestAnimationFrame(frame);
@@ -442,7 +454,7 @@ async function init() {
   const want = /p=(\w+)/.exec(location.hash)?.[1], pickName = /sel=([^&]+)/.exec(location.hash)?.[1];
   const z = /z=(\w+)/.exec(location.hash)?.[1];
   if (z) { $(`#zoom [data-zoom=${z}]`)?.click(); cam.scale = cam.target; }
-  if (want && panel(want)) openPanel(want); else if (!seen) openPanel('about');
+  if (want) { if (panel(want)) openPanel(want); } else if (!seen) openPanel('about');
   if (pickName) select(S.stars.find(s => s.n === decodeURIComponent(pickName)) || bodies.find(b => b.name === decodeURIComponent(pickName)) || S.items.find(i => i.title === decodeURIComponent(pickName)));
 }
 init();
