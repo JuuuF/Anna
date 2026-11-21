@@ -114,9 +114,10 @@ body.journey #hint, body.journey #yearcard, body.journey #zoom { display: none !
   background: var(--panel); border: 1px solid var(--line2); border-radius: 3px; box-shadow: 0 10px 30px rgba(0, 0, 0, .55); }
 #frame img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 1.6s ease; }
 #frame img.on { opacity: 1; }
-#frame figcaption { position: absolute; left: 0; right: 0; bottom: 0; padding: 22px 10px 7px; font: 13px/1.25 var(--sans); color: #f1ede4;
+#frame figcaption { position: absolute; left: 0; right: 0; bottom: 0; padding: 22px 10px 12px; font: 13px/1.25 var(--sans); color: #f1ede4;
   background: linear-gradient(transparent, rgba(4, 5, 12, .85)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#frame .bar { position: absolute; left: 0; bottom: 0; height: 2px; width: 0; background: var(--gold); }      /* fills up until the next picture comes */
+#frame .bar { position: absolute; left: 0; bottom: 0; height: 6px; width: 0; background: var(--gold); z-index: 2; }      /* fills up until the next picture comes */
+#frame::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 6px; background: rgba(0, 0, 0, .6); z-index: 1; }      /* its track */
 #frame .x { position: absolute; top: 0; right: 0; padding: 0 8px 4px; font-size: 22px; color: #fff; text-shadow: 0 0 6px #000; opacity: 0; transition: opacity .2s; }
 #frame:hover .x, #frame:focus-within .x { opacity: 1; }
 body.journey #frame, body.leftopen #frame { display: none; }
@@ -219,7 +220,7 @@ textarea { resize: vertical; min-height: 84px; font: 17px/1.45 var(--serif); }
   #dock .long { display: none; } #dock .short { display: inline; }
   #yearcard { font-size: 16px; }
   #frame { left: 8px; width: 112px; bottom: calc(var(--bottom) + 10px); }
-  #frame figcaption { font-size: 11px; padding: 14px 6px 4px; }
+  #frame figcaption { font-size: 11px; padding: 14px 6px 9px; }
   #frame .x { opacity: 1; font-size: 18px; }
   #journey { max-height: 48vh; }
   #journey .jbody { flex-direction: column; gap: 8px; padding: 12px 16px 4px; }
