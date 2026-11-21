@@ -42,8 +42,21 @@ export function pickPicture(state) {
 }
 export const catColor = c => (CATS[c] || CATS.sonst)[1];
 
-// '1998-05-23' or '1998-05-23T14:30' -> ms (local time; a date without time counts as noon)
-export const parseWhen = s => new Date(s.length <= 10 ? s + 'T12:00' : s).getTime();
+// A date may leave out the day, or the day and the month, when they do not matter or nobody remembers them:
+// '1976', '1976-08', '1976-08-30' or '1976-08-30T14:30' -> ms (local time).
+// edge 'mid' for a moment: a day counts as its noon, a month as its 15th, a year as the 1st of July.
+// edge 'start' / 'end' for the two ends of a span of time: '1976' to '1989' runs from the beginning of 1976 to the end of 1989.
+export function parseWhen(s, edge = 'mid') {
+  s = String(s ?? '');
+  const [d, t] = s.split('T'), p = d.split('-'), [y, m, day] = p.map(Number);
+  if (!/^\d{4}(-\d{2}(-\d{2})?)?$/.test(d)) return NaN;
+  if (t) return new Date(s).getTime();
+  if (p.length === 3) return edge === 'end' ? new Date(y, m - 1, day, 23, 59).getTime() : new Date(y, m - 1, day, 12).getTime();
+  if (p.length === 2) return edge === 'end' ? new Date(y, m, 0, 23, 59).getTime() : new Date(y, m - 1, edge === 'start' ? 1 : 15, 12).getTime();
+  return edge === 'end' ? new Date(y, 11, 31, 23, 59).getTime() : new Date(y, edge === 'start' ? 0 : 6, 1, 12).getTime();
+}
+// true for '1976' and '1976-08', where the day is not known
+export const partial = s => !!s && String(s).split('T')[0].length < 10;
 
 // German date and time entry: "23.05.1998" <-> "1998-05-23", "14:30" (24 hours)
 export const showDate = iso => (iso ? iso.slice(0, 10).split('-').reverse().join('.') : '');
@@ -57,6 +70,15 @@ export function readDate(text) {
   if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null;
   return `${m[3]}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
+// like readDate, but the day, or the day and the month, may be left out: "30.08.1976", "08.1976", "1976" -> '1976-08-30', '1976-08', '1976'
+export function readWhen(text) {
+  const s = text.trim(), full = readDate(s);
+  if (full !== null) return full;
+  let m = /^(\d{1,2})[.\/\- ](\d{4})$/.exec(s);
+  if (m) return +m[1] >= 1 && +m[1] <= 12 ? `${m[2]}-${m[1].padStart(2, '0')}` : null;
+  m = /^(\d{4})$/.exec(s);
+  return m ? m[1] : null;
+}
 // -> 'HH:MM', '' if empty, null if not a time
 export function readTime(text) {
   const s = text.trim().replace(/\s*uhr$/i, '');
@@ -65,15 +87,18 @@ export function readTime(text) {
   if (!m || +m[1] > 23 || +(m[2] || 0) > 59) return null;
   return `${m[1].padStart(2, '0')}:${m[2] || '00'}`;
 }
-const DATE_IN = 'type="text" inputmode="numeric" placeholder="TT.MM.JJJJ" autocomplete="off"';
+const DATE_IN = 'type="text" inputmode="numeric" autocomplete="off"';
 const TIME_IN = 'type="text" inputmode="numeric" placeholder="HH:MM" autocomplete="off"';
-export const dateInput = (name, iso, required = false) => `<input ${DATE_IN} name="${name}" value="${showDate(iso)}" ${required ? 'required' : ''}>`;
+export const dateInput = (name, iso, required = false, hint = 'TT.MM.JJJJ') => `<input ${DATE_IN} placeholder="${hint}" name="${name}" value="${showDate(iso)}" ${required ? 'required' : ''}>`;
 export const timeInput = (name, hhmm) => `<input ${TIME_IN} name="${name}" value="${hhmm || ''}">`;
 
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const num = (x, n = 1) => x.toLocaleString('de-DE', { minimumFractionDigits: n, maximumFractionDigits: n });
 export const fmtDate = ms => new Date(ms).toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' });
 export function fmtWhen(s) {
+  const day = String(s).split('T')[0];
+  if (/^\d{4}$/.test(day)) return day;
+  if (/^\d{4}-\d{2}$/.test(day)) return new Date(parseWhen(s)).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
   const d = new Date(parseWhen(s));
   return fmtDate(d) + (s.length > 10 ? `, ${d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr` : '');
 }

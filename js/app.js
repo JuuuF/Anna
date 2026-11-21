@@ -5,7 +5,7 @@ import { photoTime } from './phototime.js';
 import { drawSky, loadWeather, lookAt, skyCam, starAltAz, weather, weatherAt } from './sky.js';
 import { atHome, cam, clampScale, drawSpace, fit, panBy } from './space.js';
 import * as store from './store.js';
-import { AU, CATS, LS, WEIGHTS, YEAR, applyCats, catColor, dateInput, dur, esc, fmtDate, fmtDist, fmtWhen, num, parseWhen, pickPicture, readDate, readTime, showDate, timeInput, weight } from './util.js';
+import { AU, CATS, LS, WEIGHTS, YEAR, applyCats, catColor, dateInput, dur, esc, fmtDate, fmtDist, fmtWhen, num, parseWhen, partial, pickPicture, readDate, readTime, readWhen, showDate, timeInput, weight } from './util.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -28,7 +28,7 @@ function rebuild() {
   ];
   const selId = S.sel?.id;
   S.items = [...fixed, ...store.state.items].map(i => ({
-    ...i, _t: parseWhen(i.date), _e: i.period ? (i.end ? parseWhen(i.end.length <= 10 ? i.end + 'T23:59' : i.end) : S.death) : null,
+    ...i, _t: parseWhen(i.date, i.period ? 'start' : 'mid'), _e: i.period ? (i.end ? parseWhen(i.end, 'end') : S.death) : null,
   })).map(i => (Number.isFinite(i._t) ? i : { ...i, _t: S.birth })).sort((a, b) => a._t - b._t);      // a date that cannot be read must not upset the order of all the others
   if (selId) S.sel = S.items.find(i => i.id === selId) || null;
   renderAll();
@@ -45,6 +45,12 @@ function age(at, verb = 'ist') {
   if (y >= 1) return `Anna ${verb} ${y} ${y === 1 ? 'Jahr' : 'Jahre'} alt.`;
   const m = Math.floor((at - S.birth) / YEAR * 12);
   return m < 1 ? `Anna ${verb} gerade erst geboren.` : `Anna ${verb} ${m} ${m === 1 ? 'Monat' : 'Monate'} alt.`;
+}
+// her age at a moment; when only the month or the year is known, that can be one of two ages
+function itemAge(i) {
+  if (!partial(i.date)) return age(i._t, 'war');
+  const a = ageYears(Math.max(S.birth, parseWhen(i.date, 'start'))), b = ageYears(Math.min(S.death, parseWhen(i.date, 'end')));
+  return a === b || a < 1 ? age(i._t, 'war') : `Anna war ${a} oder ${b} Jahre alt.`;
 }
 const inLife = at => at >= S.birth && at <= S.death;
 function spanWhere(i, at) {
@@ -415,7 +421,7 @@ function drawStation() {
         : `Dieses Licht ist jetzt <b>${fmtDist(d)}</b> entfernt${next ? ` und erreicht in ${dur((next.d - d) * YEAR)} <b>${esc(next.n)}</b>` : ''}.`;
     const ph = o.photos || [];
     h = `<div class="jbody">${ph.length ? `<figure><img data-photo="${esc(ph[0])}" alt="">${ph.length > 1 ? `<div class="thumbs">${ph.slice(1, 5).map(p => `<img data-photo="${esc(p)}" alt="">`).join('')}</div><small>${ph.length} Fotos - antippen zum Durchblättern</small>` : ''}</figure>` : ''}
-      <div><p class="meta">${J.i + 1} von ${n - 1}, ${range(o)}${inLife(o._t) && o.id !== 'birth' ? `, ${age(o._t, 'war').replace(/^Anna war /, '').replace(/ alt\.$/, '')}` : ''}</p>
+      <div><p class="meta">${J.i + 1} von ${n - 1}, ${range(o)}${inLife(o._t) && o.id !== 'birth' ? `, ${itemAge(o).replace(/^Anna war /, '').replace(/ alt\.$/, '')}` : ''}</p>
       <h3>${esc(o.title)}</h3>${o.text ? `<p class="jtext">${esc(o.text)}</p>` : ''}<p>${where}</p></div></div>`;
     secs = Math.min(26, (8 + (o.text || '').length / 28 + ph.length * 3) * (0.7 + 0.1 * weight(o)));      // more time for what matters more
   }
@@ -535,7 +541,7 @@ function renderDetail() {
     h += `<p><span class="tag">${esc((CATS[o.cat] || CATS.sonst)[0])}</span>${lock(o)}</p><p>${range(o)}</p>`;
     if (store.canEdit(o)) h += '<p><button id="editSel" class="primary">Diesen Moment bearbeiten</button></p>';
     else if (o.fixed && store.state.session?.role === 'admin') h += '<p><button id="editBase">Datum ändern</button></p>';
-    if (inLife(o._t)) h += `<p>${age(o._t, 'war')}</p>`;
+    if (inLife(o._t)) h += `<p>${itemAge(o)}</p>`;
     if (o.text) h += `<p>${esc(o.text).replace(/\n/g, '<br>')}</p>`;
     if (d <= 0) h += '<p class="muted">Dieser Moment liegt von hier aus gesehen noch in der Zukunft.</p>';
     else if (o._e) {
@@ -596,7 +602,8 @@ function renderDetail() {
 // ---------- arrivals ----------
 function arrivals() {
   const out = [];
-  for (const i of S.items) if (!i.photoOnly) for (const s of S.stars) out.push({ i, s, at: i._t + s.d * YEAR, text: `${i._e ? 'Beginn: ' : ''}${i.title} erreicht ${s.n}` });
+  // the day of arrival only means something when the day is known
+  for (const i of S.items) if (!i.photoOnly && !partial(i.date)) for (const s of S.stars) out.push({ i, s, at: i._t + s.d * YEAR, text: `${i._e ? 'Beginn: ' : ''}${i.title} erreicht ${s.n}` });
   return out;
 }
 function renderSoon() {
@@ -610,7 +617,7 @@ function renderSoon() {
   const tonight = up.map(([, s]) => `<li data-sky="${esc(s.n)}"><span class="dot lit"></span><div>${esc(s.n)}<small>sieht gerade den ${fmtDate(t - s.d * YEAR)} - ${age(t - s.d * YEAR).replace(/\.$/, '')}</small></div></li>`).join('');
   // anniversaries within the next 30 days
   const today = new Date(); today.setHours(12, 0, 0, 0);
-  const days = S.items.filter(i => !i._e && !i.photoOnly && i._t < today.getTime()).map(i => {
+  const days = S.items.filter(i => !i._e && !i.photoOnly && !partial(i.date) && i._t < today.getTime()).map(i => {
     const d = new Date(i._t), next = new Date(today.getFullYear(), d.getMonth(), d.getDate(), 12);
     if (next < today) next.setFullYear(next.getFullYear() + 1);
     return { i, inDays: Math.round((next - today) / 864e5), years: next.getFullYear() - d.getFullYear() };
@@ -705,11 +712,11 @@ function editItem(item) {
       <label><input type="radio" name="period" value="" ${i.period ? '' : 'checked'}><span>Ein Moment<small>ein bestimmter Tag</small></span></label>
       <label><input type="radio" name="period" value="1" ${i.period ? 'checked' : ''}><span>Ein Zeitraum<small>z. B. Schulzeit, ein Beruf, eine Reise</small></span></label>
     </div>
-    <div class="two"><label><span data-l="from">Wann?</span>${dateInput('date', d0, true)}</label>
+    <div class="two"><label><span data-l="from">Wann?</span>${dateInput('date', d0, true, 'TT.MM.JJJJ oder JJJJ')}</label>
       <label>Uhrzeit (wenn bekannt)${timeInput('time', t0)}</label></div>
-    <div class="two" data-end><label>Bis wann?${dateInput('end', d1)}</label>
+    <div class="two" data-end><label>Bis wann?${dateInput('end', d1, false, 'TT.MM.JJJJ oder JJJJ')}</label>
       <label>Uhrzeit (wenn bekannt)${timeInput('endtime', t1)}</label></div>
-    <p class="muted" data-end style="margin:-6px 0 0">„Bis wann“ leer lassen, wenn der Zeitraum bis zuletzt andauerte.</p>
+    <p class="muted" style="margin:-6px 0 0">Tag und Monat dürfen fehlen: Nur das Jahr (1976) oder Monat und Jahr (08.1976) genügen.<span data-end> „Bis wann“ leer lassen, wenn der Zeitraum bis zuletzt andauerte.</span></p>
     <label>Thema<select name="cat">${Object.entries(CATS).map(([k, [n]]) => `<option value="${k}" ${k === (CATS[i.cat] ? i.cat : 'sonst') ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label>
     <label>Wie wichtig ist dieser Moment? <span id="impWord" style="color:var(--text)"></span>
       <input type="range" name="imp" min="1" max="5" step="1" value="${i.imp || 1}" style="accent-color:var(--gold)">
@@ -769,11 +776,12 @@ function editItem(item) {
   form.onsubmit = async e => {
     e.preventDefault();
     const f = form, withTime = (d, t) => (d && t ? `${d}T${t}` : d), bad = m => { status.className = 'status err'; status.textContent = m; };
-    const date = readDate(f.date.value), time = readTime(f.time.value);
-    const end = f.period.value ? readDate(f.end.value) : '', endtime = f.period.value ? readTime(f.endtime.value) : '';
-    if (!date || end === null) return bad('Bitte das Datum als Tag.Monat.Jahr eingeben, zum Beispiel 23.05.1998.');
+    const date = readWhen(f.date.value), time = readTime(f.time.value);
+    const end = f.period.value ? readWhen(f.end.value) : '', endtime = f.period.value ? readTime(f.endtime.value) : '';
+    if (!date || end === null) return bad('Bitte das Datum als Tag.Monat.Jahr eingeben, zum Beispiel 23.05.1998 - oder nur Monat und Jahr (05.1998) oder nur das Jahr (1998).');
     if (time === null || endtime === null) return bad('Bitte die Uhrzeit mit 24 Stunden eingeben, zum Beispiel 14:30.');
-    if (end && end < date) return bad('Das Ende liegt vor dem Anfang.');
+    if ((time && partial(date)) || (endtime && partial(end))) return bad('Eine Uhrzeit passt nur zu einem Datum mit Tag. Bitte den Tag ergänzen oder die Uhrzeit leer lassen.');
+    if (end && parseWhen(withTime(end, endtime), 'end') < parseWhen(withTime(date, time), 'start')) return bad('Das Ende liegt vor dem Anfang.');
     busy(true); status.className = 'status'; status.textContent = 'Wird gespeichert ... das dauert einen Augenblick.';
     try {
       const photos = [];
@@ -967,8 +975,8 @@ function renderLead() {
 }
 function renderAll() { fillFrame(); life.draw(); renderDetail(); renderSoon(); renderMoments(); renderLogin(); renderLead(); }
 
-const DEMO = [['Einschulung', '1976-08-30', '', 'kindheit'], ['Schulzeit', '1976-08-30', '1989-06-16', 'kindheit'], ['Konfirmation', '1984-04-15', '', 'kindheit'],
-  ['Tanzkurs', '1986-10-03', '', 'freude'], ['Abitur', '1989-06-16', '', 'kindheit'], ['Ausbildung', '1989-09-01', '1992-07-31', 'beruf'], ['Erste Begegnung', '1994-07-09', '', 'liebe'],
+const DEMO = [['Einschulung', '1976-08-30', '', 'kindheit'], ['Schulzeit', '1976', '1989', 'kindheit'], ['Konfirmation', '1984-04-15', '', 'kindheit'],
+  ['Tanzkurs', '1986', '', 'freude'], ['Abitur', '1989-06-16', '', 'kindheit'], ['Ausbildung', '1989-09', '1992-07', 'beruf'], ['Erste Begegnung', '1994-07-09', '', 'liebe'],
   ['Hochzeit', '1998-05-23T14:30', '', 'liebe'], ['Ehe', '1998-05-23', null, 'liebe'], ['Einzug ins Haus', '2004-10-01', '', 'liebe'], ['Reise ans Meer', '2015-08-12', '', 'freude'],
   ['Krankheit', '2023-03-01', null, 'krankheit']].map(([title, date, end, cat], n) => ({ id: 'demo' + n, title, date, end: end || '', period: end !== '', cat, vis: 'public', photos: title === 'Hochzeit' ? ['icon-512.png', 'icon-192.png', 'icon-180.png'] : [], imp: { Hochzeit: 5, 'Erste Begegnung': 5, Tanzkurs: 1, Konfirmation: 2 }[title],
   text: 'Ein Beispieltext, der nur beim Testen auf dem eigenen Rechner erscheint.' })).concat([
