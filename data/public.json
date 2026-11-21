@@ -41,6 +41,11 @@
    "color": "#9a93b5"
   },
   {
+   "id": "tidrzpr",
+   "name": "Feiertage",
+   "color": "#b9c7a0"
+  },
+  {
    "id": "sonst",
    "name": "Sonstiges",
    "color": "#d8d2c4"
