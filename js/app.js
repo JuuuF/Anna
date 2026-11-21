@@ -205,7 +205,7 @@ function openPanel(id) {
   p.hidden = false; syncDock();
 }
 const closePanel = id => { panel(id).hidden = true; syncDock(); };
-const syncDock = () => $$('#dock [data-panel]').forEach(b => b.classList.toggle('on', !panel(b.dataset.panel).hidden));
+const syncDock = () => { $$('#dock [data-panel]').forEach(b => b.classList.toggle('on', !panel(b.dataset.panel).hidden)); document.body.classList.toggle('leftopen', $$('.panel.left').some(p => !p.hidden)); };
 $$('#dock [data-panel]').forEach(b => b.onclick = () => (panel(b.dataset.panel).hidden ? openPanel(b.dataset.panel) : closePanel(b.dataset.panel)));
 for (const p of $$('.panel')) {
   $('.x', p).onclick = () => closePanel(p.id.slice(2));
@@ -237,6 +237,44 @@ async function shareLink(title) {
   try { if (navigator.share) await navigator.share({ title: 'Annas Licht', text, url }); else { await navigator.clipboard.writeText(url); return 'Link kopiert'; } } catch { /* cancelled */ }
   return null;
 }
+
+// ---------- the picture frame: the photos of all moments, in random order, one after another ----------
+const pics = { el: $('#frame'), pool: [], n: 0, timer: 0, key: '', off: false, now: null };
+function photoUrl(path) {
+  if (!urls.has(path)) urls.set(path, store.photoBytes(path).then(b => URL.createObjectURL(new Blob([b], { type: 'image/jpeg' }))));
+  return urls.get(path);
+}
+async function nextPicture() {
+  clearTimeout(pics.timer);
+  if (pics.off || !pics.pool.length) { pics.el.hidden = true; return; }
+  const pic = pics.pool[pics.n++ % pics.pool.length], [a, b] = $$('img', pics.el), show = a.classList.contains('on') ? b : a, hide = show === a ? b : a;
+  try {
+    show.src = await photoUrl(pic.path);
+    await show.decode?.().catch(() => {});
+    show.classList.add('on'); hide.classList.remove('on');
+    pics.now = pic.item; pics.el.hidden = false;
+    $('figcaption', pics.el).textContent = `${pic.item.title === 'Fotos' ? '' : pic.item.title + ' · '}${pic.item.date.slice(0, 4)}`;
+    pics.fails = 0;
+  } catch {                                              // a photo that cannot be loaded (yet): go straight to the next one
+    pics.fails = (pics.fails || 0) + 1;
+    pics.timer = setTimeout(nextPicture, pics.fails >= pics.pool.length ? 60000 : 600);
+    return;
+  }
+  pics.timer = setTimeout(nextPicture, document.hidden ? 20000 : 9000);
+}
+// called whenever the moments change (also after logging in or out)
+function fillFrame() {
+  const pool = S.items.flatMap(i => (i.photos || []).map(path => ({ path, item: i })));
+  const key = pool.map(p => p.path).join('|');
+  if (key === pics.key) { for (const p of pics.pool) p.item = S.items.find(i => i.id === p.item.id) || p.item; return; }
+  for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }      // shuffle
+  Object.assign(pics, { pool, key, n: 0 });
+  nextPicture();
+}
+pics.el.onclick = e => {
+  if (e.target.closest('.x')) { pics.off = true; pics.el.hidden = true; clearTimeout(pics.timer); return; }
+  if (pics.now) select(S.items.find(i => i.id === pics.now.id) || pics.now);
+};
 
 // ---------- a chosen time on the lifeline strip ----------
 const monthYear = t => new Date(t).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
@@ -839,7 +877,7 @@ function renderLead() {
   $('#lead').innerHTML = `Das Licht ihres Lebens erfüllt in diesem Augenblick eine Kugel mit einem Radius von <b>${num(dOut, 7)}</b> Lichtjahren.`
     + (all >= 100 ? `<span class="more"> Rund <b>${all.toLocaleString('de-DE')}</b> Sterne sehen sie gerade – ${lit} davon zeigt diese Karte, jeden an einem anderen Tag ihres Lebens.</span>` : '');
 }
-function renderAll() { life.draw(); renderDetail(); renderSoon(); renderMoments(); renderLogin(); renderLead(); }
+function renderAll() { fillFrame(); life.draw(); renderDetail(); renderSoon(); renderMoments(); renderLogin(); renderLead(); }
 
 const DEMO = [['Einschulung', '1976-08-30', '', 'kindheit'], ['Schulzeit', '1976-08-30', '1989-06-16', 'kindheit'], ['Konfirmation', '1984-04-15', '', 'kindheit'],
   ['Tanzkurs', '1986-10-03', '', 'freude'], ['Abitur', '1989-06-16', '', 'kindheit'], ['Ausbildung', '1989-09-01', '1992-07-31', 'beruf'], ['Erste Begegnung', '1994-07-09', '', 'liebe'],
