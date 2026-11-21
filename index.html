@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="robots" content="noindex, nofollow">
   <meta name="description" content="Eine Erinnerungsseite für Familie und Freunde.">
-  <meta name="theme-color" content="#0a0e22">
+  <meta name="theme-color" content="#070912">
   <title>Annas Licht</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-180.png">
@@ -15,8 +15,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Annas Licht">
   <!-- One version for all files: raise it with every change (tools/bump.sh) so browsers never mix old and new files. -->
-  <link rel="stylesheet" href="style.css?v=202611210052">
-  <script type="importmap">{ "imports": { "./js/util.js": "./js/util.js?v=202611210052", "./js/astro.js": "./js/astro.js?v=202611210052", "./js/store.js": "./js/store.js?v=202611210052", "./js/space.js": "./js/space.js?v=202611210052", "./js/life.js": "./js/life.js?v=202611210052", "./js/life.js": "./js/life.js?v=202611210052", "./js/sky.js": "./js/sky.js?v=202611210052" } }</script>
+  <link rel="stylesheet" href="style.css?v=202611210121">
+  <script type="importmap">{ "imports": { "./js/util.js": "./js/util.js?v=202611210121", "./js/astro.js": "./js/astro.js?v=202611210121", "./js/store.js": "./js/store.js?v=202611210121", "./js/space.js": "./js/space.js?v=202611210121", "./js/life.js": "./js/life.js?v=202611210121", "./js/sky.js": "./js/sky.js?v=202611210121" } }</script>
 </head>
 <body>
   <canvas id="view" aria-label="Karte: Wo Annas Licht gerade unterwegs ist"></canvas>
@@ -24,21 +24,25 @@
   <header id="head">
     <h1>Annas Licht</h1>
     <p id="lead"></p>
+    <button id="play" class="primary" title="Eine geführte Reise durch ihr Leben, Moment für Moment">Ihr Leben erleben</button>
   </header>
 
-  <div id="zoom" class="chips">
-    <button id="play" class="primary" title="Eine geführte Reise durch ihr Leben, Moment für Moment">▶ Ihr Leben erleben</button>
-    <button data-zoom="home" id="homeBtn" hidden title="Zurück zur Erde in die Mitte">← Zur Erde</button>
+  <nav id="views" aria-label="Ansicht">
+    <button data-view="space" class="on">Weltraum</button>
+    <button data-view="sky">Nachthimmel</button>
+  </nav>
+
+  <div id="zoom" aria-label="Ausschnitt">
+    <button data-zoom="home" id="homeBtn" hidden title="Die Erde wieder in die Mitte nehmen">Zurück zur Erde</button>
     <button data-zoom="life" title="Ihr ganzes Leben">Ihr ganzes Leben</button>
     <button data-zoom="near" title="Die nächsten Sterne">Nachbarsterne</button>
     <button data-zoom="last" title="Wo ihr letztes Licht gerade ist">Letztes Licht</button>
     <button data-zoom="solar" title="Unser Sonnensystem">Sonnensystem</button>
-    <button data-zoom="in" aria-label="Näher heran">+</button>
-    <button data-zoom="out" aria-label="Weiter weg">−</button>
+    <span class="pm"><button data-zoom="in" aria-label="Näher heran">+</button><button data-zoom="out" aria-label="Weiter weg">−</button></span>
   </div>
 
   <div id="skybar" hidden>
-    <button id="skytoggle" aria-expanded="true" title="Ein- oder ausklappen"><strong>Der Himmel über Neumünster</strong> <span id="skywhen"></span> <span class="chev">▾</span></button>
+    <button id="skytoggle" aria-expanded="true" title="Ein- oder ausklappen"><strong>Der Himmel über Neumünster</strong> <span id="skywhen"></span> <span class="chev"></span></button>
     <div class="more">
       <input type="range" id="skytime" min="240" max="1200" step="5" aria-label="Uhrzeit">
       <button id="skynow">Jetzt</button>
@@ -53,17 +57,11 @@
   <aside id="journey" hidden></aside>
   <div id="life" title="Ihr Leben von links nach rechts – ziehen, um eine Zeit auszuwählen"><canvas></canvas></div>
 
-  <button class="dockhint l" hidden aria-label="Weitere Knöpfe links">‹</button>
-  <button class="dockhint r" hidden aria-label="Weitere Knöpfe rechts">›</button>
-  <nav id="dock">
-    <div class="seg">
-      <button data-view="space" class="on">Weltraum</button>
-      <button data-view="sky">Nachthimmel</button>
-    </div>
+  <nav id="dock" aria-label="Inhalte">
     <button data-panel="moments">Momente</button>
     <button data-panel="soon">Heute</button>
     <button data-panel="time">Zeitreise</button>
-    <button data-panel="about">Über diese Seite</button>
+    <button data-panel="about"><span class="long">Über diese Seite</span><span class="short">Über</span></button>
     <button data-panel="login" id="loginBtn">Anmelden</button>
   </nav>
 
@@ -101,6 +99,6 @@
   <section class="panel left" id="p-login" hidden><header><h2>Für Familie &amp; Freunde</h2><button class="x" aria-label="Schließen">×</button></header><div class="body"></div></section>
 
   <div id="lightbox" hidden><img alt=""></div>
-  <script type="module" src="js/app.js?v=202611210052"></script>
+  <script type="module" src="js/app.js?v=202611210121"></script>
 </body>
 </html>

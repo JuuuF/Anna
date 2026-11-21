@@ -11,10 +11,10 @@ export function createLife(cv, S, { onYear, onItem, label }) {
   const moments = () => S.items.filter(i => !i._e && i._t >= S.birth && i._t <= S.death);
 
   function bubble(x, text, strong) {
-    ctx.font = `${strong ? 600 : 400} 12px system-ui, sans-serif`;
+    ctx.font = `${strong ? 600 : 400} 12px "Source Sans 3", system-ui, sans-serif`;
     const w = ctx.measureText(text).width + 14, bx = Math.min(W - w - 2, Math.max(2, x - w / 2));
-    ctx.fillStyle = strong ? '#f3c98b' : 'rgba(40,36,70,.95)';
-    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(bx, 1, w, 17, 8) : ctx.rect(bx, 1, w, 17); ctx.fill();
+    ctx.fillStyle = strong ? '#d9b87e' : 'rgba(34,36,52,.97)';
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(bx, 1, w, 17, 2) : ctx.rect(bx, 1, w, 17); ctx.fill();
     ctx.fillStyle = strong ? '#1b1630' : '#ece6da'; ctx.textAlign = 'left'; ctx.fillText(text, bx + 7, 14);
   }
 
@@ -27,7 +27,7 @@ export function createLife(cv, S, { onYear, onItem, label }) {
     ctx.clearRect(0, 0, W, H);
     const y = base();
     // years
-    ctx.font = '10px system-ui, sans-serif'; ctx.textAlign = 'center';
+    ctx.font = '10px "Source Sans 3", system-ui, sans-serif'; ctx.textAlign = 'center';
     const y0 = new Date(S.birth).getFullYear(), y1 = new Date(S.death).getFullYear(), step = W < 420 ? 10 : 5;
     for (let yr = Math.ceil(y0 / step) * step; yr <= y1; yr += step) {
       const x = xOf(new Date(yr, 0, 1).getTime()), major = yr % 10 === 0;

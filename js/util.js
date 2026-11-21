@@ -81,7 +81,7 @@ export function placeLabels(ctx, list, maxSoft = 1e9) {
   let soft = 0;
   list.sort((a, b) => b.prio - a.prio);
   for (const l of list) {
-    ctx.font = l.font || '12px system-ui, sans-serif';
+    ctx.font = l.font || '12px "Source Sans 3", system-ui, sans-serif';
     const pad = l.box ? 9 : 4, w = ctx.measureText(l.text).width + 2 * pad, h = l.box ? 22 : 15;
     const x = l.align === 'right' ? l.x - w : l.align === 'left' ? l.x : l.x - w / 2, y = l.y - h + (l.box ? 7 : 3);
     if (!l.force && ((l.soft && soft >= maxSoft) || done.some(r => x < r[0] + r[2] && x + w > r[0] && y < r[1] + r[3] && y + h > r[1]))) continue;
@@ -90,8 +90,8 @@ export function placeLabels(ctx, list, maxSoft = 1e9) {
     ctx.globalAlpha = l.alpha ?? 1;
     ctx.textAlign = 'left';
     if (l.box) {                                         // a name plate: used for the moments of her life
-      ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, 11) : ctx.rect(x, y, w, h);
-      ctx.fillStyle = 'rgba(24,18,44,.92)'; ctx.fill();
+      ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, 2) : ctx.rect(x, y, w, h);
+      ctx.fillStyle = 'rgba(12,13,24,.94)'; ctx.fill();
       ctx.lineWidth = 1.2; ctx.strokeStyle = l.box; ctx.stroke();
     } else { ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(8,10,28,.75)'; ctx.strokeText(l.text, x + pad, l.y); }
     ctx.fillStyle = l.color || 'rgba(236,230,218,.9)'; ctx.fillText(l.text, x + pad, l.y);

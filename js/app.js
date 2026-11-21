@@ -54,7 +54,7 @@ function frame() {
   // on phones an open sheet covers the lower part: keep the middle of the map in the part that stays visible
   // keep the middle of the map in the part of the screen that is not covered by a sheet or a card
   const small = innerWidth <= 760, sheet = small && $$('.panel').find(p => !p.hidden), card = $$('#yearcard, #journey').find(c => !c.hidden);
-  const top = small ? 96 : 30, bottom = sheet ? sheet.offsetHeight : card ? H - card.getBoundingClientRect().top : 122;
+  const top = small ? 176 : 30, bottom = sheet ? sheet.offsetHeight : card ? H - card.getBoundingClientRect().top : 122;
   const want = top + Math.max(120, H - top - bottom) / 2;
   S.cy = (S.cy ?? want) + (want - (S.cy ?? want)) * 0.15;
   updateBodies(S.t);
@@ -130,7 +130,7 @@ $$('#zoom button').forEach(b => b.onclick = () => {
 function setView(v) {
   S.view = v; S.hover = null;
   document.body.classList.toggle('sky', v === 'sky');
-  $$('#dock [data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === v));
+  $$('#views [data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === v));
   $('#zoom').hidden = v !== 'space'; $('#skybar').hidden = v !== 'sky';
   if (v !== 'space' && J.on) stopJourney();
   $('#hint').textContent = v === 'space' ? 'Ziehen dreht · Mausrad oder zwei Finger zoomen · Doppelklick fliegt hin · Umschalt-Taste oder zwei Finger verschieben'
@@ -138,7 +138,7 @@ function setView(v) {
   if (v === 'sky' && S.sel?.kind === 'star') lookAt(S.sel, S.skyT ?? Date.now());
   $('#hint').style.opacity = 1; setTimeout(() => { $('#hint').style.opacity = 0; }, 9000);
 }
-$$('#dock [data-view]').forEach(b => b.onclick = () => setView(b.dataset.view));
+$$('#views [data-view]').forEach(b => b.onclick = () => setView(b.dataset.view));
 
 // night sky clock: minutes after noon of the "current" evening
 const noon = () => { const d = new Date(); if (d.getHours() < 9) d.setDate(d.getDate() - 1); d.setHours(12, 0, 0, 0); return d.getTime(); };
@@ -163,17 +163,6 @@ const foldSky = closed => { $('#skybar').classList.toggle('closed', closed); $('
 $('#skytoggle').onclick = () => foldSky(!$('#skybar').classList.contains('closed'));
 foldSky(innerWidth <= 1100);
 
-// the bottom bar scrolls sideways when it does not fit: fade the cut-off edge and show an arrow there
-const dock = $('#dock'), arrows = $$('.dockhint');
-function dockEdges() {
-  const left = dock.scrollLeft > 6, right = dock.scrollLeft + dock.clientWidth < dock.scrollWidth - 6;
-  dock.classList.toggle('more-left', left); dock.classList.toggle('more-right', right);
-  arrows[0].hidden = !left; arrows[1].hidden = !right;
-}
-dock.addEventListener('scroll', dockEdges, { passive: true }); addEventListener('resize', dockEdges);
-arrows[0].onclick = () => dock.scrollBy({ left: -dock.clientWidth * 0.7 });
-arrows[1].onclick = () => dock.scrollBy({ left: dock.clientWidth * 0.7 });
-setTimeout(dockEdges, 0);
 $('#skytime').oninput = e => setSkyTime(+e.target.value);
 $('#skynow').onclick = () => setSkyTime(null);
 
@@ -222,7 +211,11 @@ const life = createLife($('#life canvas'), S, {
 function selectYear(time) {
   if (J.on) stopJourney();
   const y = { kind: 'year', _t: time, cat: 'freude', title: monthYear(time) };
-  if (S.view === 'space' && cam.focus && (cam.focus.kind === 'year' || cam.focus._t)) cam.focus = y;     // already travelling along the lifeline: stay on it
+  if (S.view === 'space') {                          // travel along the lifeline to that time, like the guided journey does
+    cam.focus = y; cam.touched = performance.now();
+    const close = fit(8, W, H);
+    if (cam.target < close * 0.6 || cam.target > close * 6) cam.target = clampScale(close);
+  }
   S.sel = y; closePanel('detail'); renderYear();
 }
 function renderYear() {
@@ -238,12 +231,13 @@ function renderYear() {
     <p>${close.length ? `Gerade zu sehen von ${close.map(x => star(x[1])).join(', ')}.`
       : `Kein Stern dieser Karte sieht gerade genau diese Wochen – am nächsten ist ${star(seen[0][1])}.`}</p>
     ${spans.length || near.length ? `<p class="muted">${[...spans.map(i => esc(i.title)), ...near.map(i => `<a data-item="${i.id}">${esc(i.title)}</a> (${dur(i._t - y._t)} ${i._t < y._t ? 'davor' : 'danach'})`)].join(' · ')}</p>` : ''}
-    ${S.view === 'space' ? '<div class="row"><button id="yfly">Näher ansehen</button></div>' : ''}`;
+    ${S.view === 'space' ? '<div class="row"><button id="yfly">Näher heran</button><button id="yhome">Ganzes Leben zeigen</button></div>' : ''}`;
   el.hidden = false;
   $('.x', el).onclick = () => { S.sel = null; el.hidden = true; life.draw(); };
   $$('[data-star]', el).forEach(a => a.onclick = () => select(S.stars.find(s => s.n === a.dataset.star)));
   $$('[data-item]', el).forEach(a => a.onclick = () => select(S.items.find(i => i.id === a.dataset.item)));
   if ($('#yfly')) $('#yfly').onclick = () => flyTo(y);
+  if ($('#yhome')) $('#yhome').onclick = () => $('#zoom [data-zoom=life]').click();
 }
 
 // ---------- the guided journey through her life ----------
@@ -263,12 +257,12 @@ function startJourney(from = 0) {
   if (S.view !== 'space') setView('space');
   $$('.panel').forEach(p => { p.hidden = true; }); syncDock();
   Object.assign(J, { on: true, list: stations(), i: from, paused: false });
-  document.body.classList.add('journey'); $('#play').textContent = '■ Reise beenden';
+  document.body.classList.add('journey'); $('#play').textContent = 'Reise beenden';
   showStation();
 }
 function stopJourney() {
   clearTimeout(J.timer); J.on = false;
-  document.body.classList.remove('journey'); $('#journey').hidden = true; $('#play').textContent = '▶ Ihr Leben erleben';
+  document.body.classList.remove('journey'); $('#journey').hidden = true; $('#play').textContent = 'Ihr Leben erleben';
 }
 function showStation() {
   clearTimeout(J.timer);
@@ -295,8 +289,8 @@ function showStation() {
     secs = Math.min(24, 8 + (o.text || '').length / 28 + ph.length * 3);
   }
   el.innerHTML = `<div class="bar">${secs ? `<i style="animation-duration:${secs}s"></i>` : ''}</div>${h}
-    <div class="row"><button data-j="prev" ${J.i ? '' : 'disabled'}>◀ Zurück</button>
-      ${o.end ? '<button data-j="again">Noch einmal</button>' : `<button data-j="pause">${J.paused ? '▶ Weiter abspielen' : 'Pause'}</button><button data-j="next" class="primary">Weiter ▶</button>`}
+    <div class="row"><button data-j="prev" ${J.i ? '' : 'disabled'}>Zurück</button>
+      ${o.end ? '<button data-j="again">Noch einmal</button>' : `<button data-j="pause">${J.paused ? 'Abspielen' : 'Pause'}</button><button data-j="next" class="primary">Weiter</button>`}
       ${o.end || o.auto ? '' : '<button data-j="more">Ganz ansehen</button>'}<button class="x" aria-label="Reise beenden">×</button></div>`;
   el.classList.toggle('paused', J.paused); el.hidden = false; hydrate(el); life.draw();
   $('.x', el).onclick = stopJourney;

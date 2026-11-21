@@ -131,13 +131,13 @@ export function drawSpace(ctx, W, H, S) {
     const a = -cam.yaw + Math.PI / 2 * 0.25, p = proj([d * Math.cos(a), d * Math.sin(a), 0]);       // label where the ring is closest to the viewer's right
     const q = proj([d * Math.cos(-cam.yaw - Math.PI / 2), d * Math.sin(-cam.yaw - Math.PI / 2), 0]);
     const at = onScreen(q) ? q : p;
-    if (onScreen(at)) labels.push({ x: at[0], y: at[1] + 14, text, color: 'rgba(169,164,184,.85)', font: '11px system-ui, sans-serif', prio: 1 });
+    if (onScreen(at)) labels.push({ x: at[0], y: at[1] + 14, text, color: 'rgba(169,164,184,.85)', font: '11px "Source Sans 3", system-ui, sans-serif', prio: 1 });
   }
   const oort = 0.8 * sc;
   if (o && oort > 60 && oort < 3 * Math.max(W, H)) {
     ctx.setLineDash([3, 6]); ctx.strokeStyle = 'rgba(160,190,230,.25)';
     ctx.beginPath(); ctx.arc(o[0], o[1], sil(0.8), 0, 2 * Math.PI); ctx.stroke(); ctx.setLineDash([]);
-    labels.push({ x: o[0], y: o[1] - sil(0.8) - 6, text: 'Oortsche Wolke', color: 'rgba(160,190,230,.7)', font: '11px system-ui, sans-serif', prio: 2 });
+    labels.push({ x: o[0], y: o[1] - sil(0.8) - 6, text: 'Oortsche Wolke', color: 'rgba(160,190,230,.7)', font: '11px "Source Sans 3", system-ui, sans-serif', prio: 2 });
   }
 
   // ---- solar system ----
@@ -195,7 +195,7 @@ export function drawSpace(ctx, W, H, S) {
     if (on) { ctx.strokeStyle = '#f3c98b'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(p[0], p[1], r + 8, 0, 7); ctx.stroke(); }
     const year = lit ? ' · ' + new Date(t - s.d * YEAR).getFullYear() : '';
     labels.push({ x: p[0], y: p[1] - r - 6, text: s.n + year, color: lit ? 'rgba(255,240,215,.95)' : 'rgba(200,205,225,.6)',
-      alpha: on ? 1 : Math.max(0.4, sh), font: `${Math.round(Math.min(14, Math.max(10, 11.5 * p[2])))}px system-ui, sans-serif`,
+      alpha: on ? 1 : Math.max(0.4, sh), font: `${Math.round(Math.min(14, Math.max(10, 11.5 * p[2])))}px "Source Sans 3", system-ui, sans-serif`,
       prio: on ? 100 : (lit ? 20 : 8) + (s.hz ? 3 : 0) - s.mag * 0.8 + p[2] * 6, force: on, soft: true });
     hits.push({ x: p[0], y: p[1], o: s });
   }
@@ -234,7 +234,7 @@ export function drawSpace(ctx, W, H, S) {
       ctx.globalAlpha = 1; ctx.lineCap = 'butt';
       const m = [(a[0] + b[0]) / 2 + off, (a[1] + b[1]) / 2];
       if (onScreen(m)) {
-        labels.push({ x: m[0] + 10, y: m[1] + 4, text: it.title, align: 'left', color: '#fff', box: color, font: 'italic 13px Georgia, serif', prio: on ? 100 : 40, force: on });
+        labels.push({ x: m[0] + 10, y: m[1] + 4, text: it.title, align: 'left', color: '#fff', box: color, font: 'italic 13px EB Garamond, Georgia, serif', prio: on ? 100 : 40, force: on });
         hits.push({ x: m[0], y: m[1], o: it }, { x: a[0] + off, y: a[1], o: it }, { x: b[0] + off, y: b[1], o: it });
       }
       continue;
@@ -245,7 +245,7 @@ export function drawSpace(ctx, W, H, S) {
     ctx.beginPath(); ctx.moveTo(p[0], p[1] - q); ctx.lineTo(p[0] + q, p[1]); ctx.lineTo(p[0], p[1] + q); ctx.lineTo(p[0] - q, p[1]); ctx.closePath();
     ctx.fillStyle = it.id === 'death' ? '#1b1630' : color; ctx.fill();
     ctx.strokeStyle = on ? '#fff' : it.id === 'death' ? color : 'rgba(255,255,255,.85)'; ctx.lineWidth = on ? 2.5 : 1.5; ctx.stroke();
-    labels.push({ x: p[0] - 13, y: p[1] + 4, text: it.title, align: 'right', color: '#fff', box: on ? '#fff' : color, font: '14px Georgia, serif', prio: on ? 100 : it.fixed ? 60 : 50, force: on });
+    labels.push({ x: p[0] - 13, y: p[1] + 4, text: it.title, align: 'right', color: '#fff', box: on ? '#fff' : color, font: '14px EB Garamond, Georgia, serif', prio: on ? 100 : it.fixed ? 60 : 50, force: on });
     hits.push({ x: p[0], y: p[1], o: it });
   }
 
@@ -255,7 +255,7 @@ export function drawSpace(ctx, W, H, S) {
     if (onScreen(p)) {
       ctx.strokeStyle = '#f3c98b'; ctx.lineWidth = 2; ctx.fillStyle = '#1b1630';
       ctx.beginPath(); ctx.arc(p[0], p[1], 7, 0, 7); ctx.fill(); ctx.stroke();
-      labels.push({ x: p[0] - 14, y: p[1] + 4, text: sel.title, align: 'right', color: '#fff', box: '#f3c98b', font: '14px Georgia, serif', prio: 100, force: true });
+      labels.push({ x: p[0] - 14, y: p[1] + 4, text: sel.title, align: 'right', color: '#fff', box: '#f3c98b', font: '14px EB Garamond, Georgia, serif', prio: 100, force: true });
     }
   }
 

@@ -98,7 +98,7 @@ export function drawSky(ctx, W, H, S) {
   for (const alt of [15, 30, 45, 60, 75]) { ctx.beginPath(); let pen = false; for (let az = 0; az <= 360; az += 3) { const p = P(alt, az); if (p) { pen ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); } pen = !!p; } ctx.stroke(); }
   for (let az = 0; az < 360; az += 22.5) { ctx.beginPath(); let pen = false; for (let alt = 0; alt <= 90; alt += 5) { const p = P(alt, az); if (p) { pen ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); } pen = !!p; } ctx.stroke(); }
   const zen = P(90, 0);
-  if (seen(zen)) labels.push({ x: zen[0], y: zen[1] - 6, text: 'Zenit', color: 'rgba(150,170,230,.5)', font: '10px system-ui, sans-serif', prio: 4 });
+  if (seen(zen)) labels.push({ x: zen[0], y: zen[1] - 6, text: 'Zenit', color: 'rgba(150,170,230,.5)', font: '10px "Source Sans 3", system-ui, sans-serif', prio: 4 });
 
   if (S.sky) {
     ctx.strokeStyle = 'rgba(150,170,230,.3)';
@@ -114,7 +114,7 @@ export function drawSky(ctx, W, H, S) {
     }
     for (const [ra, dec, name] of S.sky.names) {
       const p = star(ra, dec);
-      if (seen(p) && p[3] > 6) labels.push({ x: p[0], y: p[1], text: name.toUpperCase(), color: 'rgba(150,170,230,.55)', font: '10px system-ui, sans-serif', prio: 5 });
+      if (seen(p) && p[3] > 6) labels.push({ x: p[0], y: p[1], text: name.toUpperCase(), color: 'rgba(150,170,230,.55)', font: '10px "Source Sans 3", system-ui, sans-serif', prio: 5 });
     }
     const grow = Math.min(1.8, Math.max(0.8, Math.sqrt(skyCam.zoom)));
     for (const s of S.sky.stars) {
@@ -122,7 +122,7 @@ export function drawSky(ctx, W, H, S) {
       if (!seen(p) || p[3] < 0) continue;
       ctx.globalAlpha = Math.min(0.9, 0.35 + p[3] / 25); ctx.fillStyle = starColor(s[3]);       // dimmer in the haze near the horizon
       ctx.beginPath(); ctx.arc(p[0], p[1], Math.max(0.7, 3.2 - 0.55 * s[2]) * grow, 0, 7); ctx.fill();
-      if (s[5] && s[2] < 1.6 && !(s[4] && s[4] <= dOut && s[4] >= dIn)) labels.push({ x: p[0], y: p[1] + 17, text: s[5], color: 'rgba(210,215,235,.65)', font: '11px system-ui, sans-serif', prio: 6 });
+      if (s[5] && s[2] < 1.6 && !(s[4] && s[4] <= dOut && s[4] >= dIn)) labels.push({ x: p[0], y: p[1] + 17, text: s[5], color: 'rgba(210,215,235,.65)', font: '11px "Source Sans 3", system-ui, sans-serif', prio: 6 });
     }
     ctx.globalAlpha = 1;
   }
@@ -140,7 +140,7 @@ export function drawSky(ctx, W, H, S) {
       ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(p[0], p[1], rad * 5.5, 0, 7); ctx.fill();
       ctx.fillStyle = '#ffe9c4'; ctx.beginPath(); ctx.arc(p[0], p[1], rad, 0, 7); ctx.fill();
       labels.push({ x: p[0], y: p[1] - rad - 7, text: `${s.n} · ${new Date(t - s.d * YEAR).getFullYear()}`, color: '#ffe3b5',
-        font: '13px Georgia, serif', prio: on ? 100 : 30 - s.mag, force: on });
+        font: '13px EB Garamond, Georgia, serif', prio: on ? 100 : 30 - s.mag, force: on });
     } else if (on) labels.push({ x: p[0], y: p[1] - rad - 7, text: s.n, prio: 100, force: true });
     if (on) { ctx.strokeStyle = '#f3c98b'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(p[0], p[1], rad + 9, 0, 7); ctx.stroke(); }
     hits.push({ x: p[0], y: p[1], o: s });
@@ -181,12 +181,12 @@ export function drawSky(ctx, W, H, S) {
     const p = P(0, i * 45);
     if (!seen(p)) return;
     const ex = 0, ey = 1;
-    ctx.font = i % 2 ? '12px Georgia, serif' : '16px Georgia, serif'; ctx.fillStyle = i % 2 ? 'rgba(243,201,139,.6)' : 'rgba(243,201,139,.95)';
+    ctx.font = i % 2 ? '12px EB Garamond, Georgia, serif' : '16px EB Garamond, Georgia, serif'; ctx.fillStyle = i % 2 ? 'rgba(243,201,139,.6)' : 'rgba(243,201,139,.95)';
     ctx.fillText(name, p[0] + ex * 20, p[1] + ey * 20 + 5);
   });
 
   placeLabels(ctx, labels);
-  ctx.font = '13px system-ui, sans-serif'; ctx.fillStyle = 'rgba(169,164,184,.9)'; ctx.textAlign = 'center';
+  ctx.font = '13px "Source Sans 3", system-ui, sans-serif'; ctx.fillStyle = 'rgba(169,164,184,.9)'; ctx.textAlign = 'center';
   if (sunAltitude(when) > -6) ctx.fillText('Zu dieser Zeit ist es noch hell – die Sterne stehen trotzdem genau dort.', cx, H - 150);
   return hits;
 }
