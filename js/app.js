@@ -229,11 +229,27 @@ for (const p of $$('.panel')) {
     head.addEventListener('pointerup', () => head.removeEventListener('pointermove', move), { once: true });
   });
 }
-// closing the moments while a form is open there counts as "Abbrechen", however it is closed (×, dock, Escape, another panel);
-// a form that is still saving stays, so that its outcome can be seen
-new MutationObserver(() => {
+// A question in the page's own look. (The browser's own confirm() names its buttons "OK" and "Abbrechen",
+// and "Abbrechen" would mean the opposite of the form's button of that name.)  -> true for yes
+let answer = null;
+function ask(text, yes, no) {
+  const el = $('#ask');
+  answer?.(false);
+  $('#askText').textContent = text; $('[data-a="1"]', el).textContent = yes; $('[data-a="0"]', el).textContent = no;
+  el.hidden = false; $('[data-a="0"]', el).focus();
+  return new Promise(resolve => { answer = v => { el.hidden = true; answer = null; resolve(v); }; });
+}
+$$('#ask [data-a]').forEach(b => b.onclick = () => answer?.(b.dataset.a === '1'));
+$('#ask').onclick = e => { if (e.target.id === 'ask') answer?.(false); };      // a tap beside the question: keep editing
+// leaving a form for a moment or for photos: only asks when something was entered or changed (form.dirty)
+const LEAVE = ['Änderungen verwerfen? Was du hier eingetragen hast, geht dabei verloren.', 'Verwerfen', 'Weiter bearbeiten'];
+const mayLeave = async form => !form.dirty?.() || ask(...LEAVE);
+// Closing the moments while a form is open there counts as "Abbrechen", however it is closed (×, dock, Escape, another panel).
+// "Weiter bearbeiten" brings the form back. A form that is still saving stays, so that its outcome can be seen.
+new MutationObserver(async () => {
   const p = panel('moments'), f = $('form', p);
-  if (p.hidden && f && !$('button.primary', f)?.disabled) renderMoments();
+  if (!p.hidden || !f || $('button.primary', f)?.disabled || answer) return;
+  if (await mayLeave(f)) { if ($('form', p) === f) renderMoments(); } else openPanel('moments');
 }).observe(panel('moments'), { attributes: true, attributeFilter: ['hidden'] });
 function deselect() {
   if (!S.sel || J.on) return;
@@ -450,7 +466,7 @@ function drawStation() {
 $('#play').onclick = () => (J.on ? stopJourney() : startJourney());
 addEventListener('keydown', e => {
   if (e.target.closest('input, textarea, select')) return;
-  if (e.key === 'Escape') { if (!$('#lightbox').hidden) $('#lightbox').hidden = true; else if (J.on) stopJourney(); else { $$('.panel').forEach(p => { p.hidden = true; }); syncDock(); } }
+  if (e.key === 'Escape') { if (answer) answer(false); else if (!$('#lightbox').hidden) $('#lightbox').hidden = true; else if (J.on) stopJourney(); else { $$('.panel').forEach(p => { p.hidden = true; }); syncDock(); } }
   if (!J.on) return;
   if (e.key === 'ArrowRight' && J.i < J.list.length - 1) { J.i++; showStation(); }
   if (e.key === 'ArrowLeft' && J.i > 0) { J.i--; showStation(); }
@@ -771,9 +787,12 @@ function editItem(item) {
     hint.hidden = true;
   };
   thumbs(); toggle();
+  const snapshot = () => JSON.stringify([[...new FormData(form)].filter(([k]) => k !== 'photos').map(([k, v]) => [k, String(v)]), fresh.length, removed.length]);
+  const before = snapshot();
+  form.dirty = () => snapshot() !== before;
   const busy = on => $$('button', form).forEach(b => { b.disabled = on; });
   const fail = e => { busy(false); status.className = 'status err'; status.textContent = 'Das hat leider nicht geklappt: ' + (e.message || e.name || 'unbekannter Fehler'); console.error(e); };
-  $('#cancel').onclick = renderMoments;
+  $('#cancel').onclick = async () => { if (await mayLeave(form)) renderMoments(); };
   if (item) $('#del').onclick = async () => {
     if (!confirm(`„${item.title}“ wirklich löschen?`)) return;
     busy(true); status.textContent = 'Wird gelöscht ...';
@@ -841,7 +860,8 @@ function addPhotos() {
     }
     form.photos.value = ''; draw();
   };
-  $('#cancel').onclick = renderMoments;
+  form.dirty = () => rows.length > 0;
+  $('#cancel').onclick = async () => { if (await mayLeave(form)) renderMoments(); };
   form.onsubmit = async e => {
     e.preventDefault();
     const bad = m => { status.className = 'status err'; status.textContent = m; };
