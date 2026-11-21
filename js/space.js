@@ -395,13 +395,15 @@ export function drawSpace(ctx, W, H, S) {
       const dEnd = Math.max(0, (t - it._e) / YEAR);
       const [a, b] = seg(up(d), up(dEnd)) || [];
       if (!a || Math.hypot(a[0] - b[0], a[1] - b[1]) < 3) continue;
-      const off = 7 + laneOf.get(it) * 7;
-      ctx.strokeStyle = color; ctx.lineWidth = on ? 6 : 4; ctx.lineCap = 'round'; ctx.globalAlpha = on ? 1 : 0.8;
+      const off = 7 + laneOf.get(it) * 7, w = weight(it);
+      ctx.strokeStyle = color; ctx.lineCap = 'round';
+      if (w >= 4) { ctx.lineWidth = 13; ctx.globalAlpha = w > 4 ? 0.22 : 0.14; ctx.beginPath(); ctx.moveTo(a[0] + off, a[1]); ctx.lineTo(b[0] + off, b[1]); ctx.stroke(); }    // a soft light along the important ones
+      ctx.lineWidth = on ? 6 : 4; ctx.globalAlpha = on ? 1 : 0.8;
       ctx.beginPath(); ctx.moveTo(a[0] + off, a[1]); ctx.lineTo(b[0] + off, b[1]); ctx.stroke();
       ctx.globalAlpha = 1; ctx.lineCap = 'butt';
       const m = [(a[0] + b[0]) / 2 + off, (a[1] + b[1]) / 2];
       if (onScreen(m)) {
-        labels.push({ x: m[0] + 10, y: m[1] + 4, text: it.title, align: 'left', color: '#fff', box: color, font: 'italic 13px EB Garamond, Georgia, serif', prio: on ? 100 : 28 + 4 * weight(it), force: on });
+        labels.push({ x: m[0] + 10, y: m[1] + 4, text: it.title, align: 'left', color: '#fff', box: color, glow: w > 4 && color, font: 'italic 13px EB Garamond, Georgia, serif', prio: on ? 100 : 28 + 4 * w, force: on });
         hits.push({ x: m[0], y: m[1], o: it }, { x: a[0] + off, y: a[1], o: it }, { x: b[0] + off, y: b[1], o: it });
       }
       continue;
@@ -409,10 +411,18 @@ export function drawSpace(ctx, W, H, S) {
     const p = proj(up(d));
     if (!onScreen(p) || d * sc < 4) continue;
     const w = it.photoOnly ? 0.4 : weight(it), q = (on ? 2 : 0) + 4.3 + 0.9 * w;      // moments are diamonds with a name plate - the more a moment matters, the larger
-    ctx.beginPath(); ctx.moveTo(p[0], p[1] - q); ctx.lineTo(p[0] + q, p[1]); ctx.lineTo(p[0], p[1] + q); ctx.lineTo(p[0] - q, p[1]); ctx.closePath();
+    const diamond = r => { ctx.beginPath(); ctx.moveTo(p[0], p[1] - r); ctx.lineTo(p[0] + r, p[1]); ctx.lineTo(p[0], p[1] + r); ctx.lineTo(p[0] - r, p[1]); ctx.closePath(); };
+    if (w >= 4) {                                        // "sehr wichtig" and the events of a life shine in their colour; a life event also gets a second outline
+      const R = q * (w > 4 ? 3.4 : 2.6), g = ctx.createRadialGradient(p[0], p[1], q * 0.5, p[0], p[1], R);
+      g.addColorStop(0, color + (w > 4 ? '70' : '48')); g.addColorStop(1, color + '00');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p[0], p[1], R, 0, 7); ctx.fill();
+      if (w > 4) { diamond(q + 4.5); ctx.strokeStyle = color; ctx.globalAlpha = 0.8; ctx.lineWidth = 1; ctx.stroke(); ctx.globalAlpha = 1; }
+    }
+    diamond(q);
     ctx.fillStyle = it.id === 'death' ? '#1b1630' : color; ctx.fill();
     ctx.strokeStyle = on ? '#fff' : it.id === 'death' ? color : 'rgba(255,255,255,.85)'; ctx.lineWidth = on ? 2.5 : 1.5; ctx.stroke();
-    labels.push({ x: p[0] - 13, y: p[1] + 4, text: it.title, align: 'right', color: '#fff', box: on ? '#fff' : color, font: `${Math.round(11.5 + 0.9 * w)}px EB Garamond, Georgia, serif`, prio: on ? 100 : it.photoOnly ? 9 : 36 + 5 * w, force: on, soft: !!it.photoOnly });
+    labels.push({ x: p[0] - 13 - (w > 4 ? 3 : 0), y: p[1] + 4, text: it.title, align: 'right', color: '#fff', box: on ? '#fff' : color, glow: w > 4 && color,
+      font: `${w >= 4 ? 500 : 400} ${Math.round(11.5 + 0.9 * w)}px EB Garamond, Georgia, serif`, prio: on ? 100 : it.photoOnly ? 9 : 36 + 5 * w, force: on, soft: !!it.photoOnly });
     hits.push({ x: p[0], y: p[1], o: it });
   }
 

@@ -143,10 +143,12 @@ export function placeLabels(ctx, list, maxSoft = 1e9) {
     done.push([x, y, w, h]);
     ctx.globalAlpha = l.alpha ?? 1;
     ctx.textAlign = 'left';
-    if (l.box) {                                         // a name plate: used for the moments of her life
+    if (l.box) {                                         // a name plate: used for the moments of her life; `glow`: a soft light around it
       ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, 2) : ctx.rect(x, y, w, h);
+      if (l.glow) { ctx.shadowColor = l.glow; ctx.shadowBlur = 12; }
       ctx.fillStyle = 'rgba(12,13,24,.94)'; ctx.fill();
-      ctx.lineWidth = 1.2; ctx.strokeStyle = l.box; ctx.stroke();
+      ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
+      ctx.lineWidth = l.glow ? 1.6 : 1.2; ctx.strokeStyle = l.box; ctx.stroke();
     } else { ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(8,10,28,.75)'; ctx.strokeText(l.text, x + pad, l.y); }
     ctx.fillStyle = l.color || 'rgba(236,230,218,.9)'; ctx.fillText(l.text, x + pad, l.y);
   }
