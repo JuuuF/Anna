@@ -616,7 +616,7 @@ function renderMoments() {
   el.innerHTML = (can ? '<p class="row"><button class="primary" id="add">Einen Moment hinzufügen</button><button id="addPhotos">Nur Fotos hinzufügen</button></p>'
     : '<p class="muted">Wer Anna kannte, kann hier eigene Erinnerungen hinzufügen - dafür bitte unten auf „Anmelden“ tippen.</p>')
     + tools + sorter + (shown.length ? '' : '<p class="muted">Zu dieser Auswahl gibt es keine Momente.</p>') + `<ul class="list">${shown.map(i => `<li data-id="${esc(i.id)}"><span class="swatch ${i._e ? 'span' : ''}" style="background:${catColor(i.cat)}"></span>
-      <div style="flex:1">${esc(i.title)} ${lock(i)}<small>${range(i)}${i.photos?.length ? `, ${i.photos.length} Foto${i.photos.length > 1 ? 's' : ''}` : ''}</small></div>
+      <div style="flex:1">${esc(i.title)} ${lock(i)}<small><span class="tag" style="color:${catColor(i.cat)}">${esc(CATS[themeOf(i)][0])}</span>${range(i)}${i.photos?.length ? `, ${i.photos.length} Foto${i.photos.length > 1 ? 's' : ''}` : ''}</small></div>
       ${store.canEdit(i) ? `<button data-edit="${esc(i.id)}" style="padding:4px 10px;font-size:13px">Bearbeiten</button>` : ''}</li>`).join('')}</ul>`;
   $$('li[data-id]', el).forEach(li => li.onclick = () => select(S.items.find(i => i.id === li.dataset.id)));
   $$('[data-tab]', el).forEach(b => b.onclick = () => { momentsTab = b.dataset.tab; renderMoments(); });
