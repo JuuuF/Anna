@@ -12,7 +12,7 @@ const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const S = { calm: matchMedia('(prefers-reduced-motion: reduce)').matches, t: Date.now(), offset: 0, view: 'space', sel: null, hover: null, stars: [], sky: null, items: [], birth: 0, death: 0, skyT: null };
 const cv = $('#view'), ctx = cv.getContext('2d');
 let W = 0, H = 0, hits = [], ticks = 0, cost = 0;
-const PROBE = location.hash.includes('messen');
+const PROBE = location.hash.includes('messen'), LOCAL = /^(localhost|127\.)/.test(location.hostname);
 
 // ---------- model ----------
 function rebuild() {
@@ -57,7 +57,7 @@ function frame() {
     cv.width = Math.round(cv.clientWidth * dpr); cv.height = Math.round(cv.clientHeight * dpr);
   }
   W = cv.clientWidth; H = cv.clientHeight;
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.setLineDash([]);
   S.t = Date.now() + S.offset * YEAR;
   // on phones an open sheet covers the lower part: keep the middle of the map in the part that stays visible
   // keep the middle of the map in the part of the screen that is not covered by a sheet or a card
@@ -67,7 +67,7 @@ function frame() {
   S.cy = (S.cy ?? want) + (want - (S.cy ?? want)) * 0.15;
   updateBodies(S.t);
   const t0 = performance.now();
-  hits = (S.view === 'space' ? drawSpace : drawSky)(ctx, W, H, S);
+  try { hits = (S.view === 'space' ? drawSpace : drawSky)(ctx, W, H, S); } catch (e) { if (!frame.warned) { frame.warned = true; console.error(e); } }   // one faulty picture must not stop all the following ones
   if (PROBE) { cost = cost * 0.9 + (performance.now() - t0) * 0.1; document.title = `${cost.toFixed(1)} ms, ${S.stars.length}, ${S.items.length}`; }   // "#messen": how long one picture takes to draw
   $('#homeBtn').hidden = atHome();
   if (S.view === 'space') { $('#thumb').style.top = scaleY(Math.min(W, H) * 0.4 / cam.scale) + 'px'; if (++ticks % 90 === 1) layoutScale(); }
@@ -308,7 +308,7 @@ function renderYear() {
     <p>${age(y._t, 'ist')} Das Licht dieser Tage ist jetzt <b>${fmtDist(d)}</b> entfernt.</p>
     <p>${close.length ? `Gerade zu sehen von ${close.map(x => star(x[1])).join(', ')}.`
       : `Kein Stern dieser Karte sieht gerade genau diese Wochen - am nächsten ist ${star(seen[0][1])}.`}</p>
-    ${spans.length || near.length ? `<p class="muted">${[...spans.map(i => `${esc(i.title)} (${spanWhere(i, y._t)})`), ...near.map(i => `<a data-item="${i.id}">${esc(i.title)}</a> (${dur(i._t - y._t)} ${i._t < y._t ? 'davor' : 'danach'})`)].join('; ')}</p>` : ''}
+    ${spans.length || near.length ? `<p class="muted">${[...spans.map(i => `${esc(i.title)} (${spanWhere(i, y._t)})`), ...near.map(i => `<a data-item="${esc(i.id)}">${esc(i.title)}</a> (${dur(i._t - y._t)} ${i._t < y._t ? 'davor' : 'danach'})`)].join('; ')}</p>` : ''}
     ${S.view === 'space' ? '<div class="row"><button id="yfly">Näher heran</button><button id="yhome">Ganzes Leben zeigen</button></div>' : ''}`;
   el.hidden = false;
   $('.x', el).onclick = () => { S.sel = null; el.hidden = true; life.draw(); };
@@ -320,13 +320,13 @@ function renderYear() {
 
 // ---------- the guided journey through her life ----------
 const J = { on: false, list: [], i: 0, paused: false, timer: 0 };
-if (PROBE || location.hash.includes('demo')) window.__J = J;      // for testing
+if (LOCAL) window.__J = J;      // for testing on the own computer
 function stations() {
   const list = S.items.filter(i => i._t <= S.t);
   if (list.length < 8) {                       // few moments so far: her round birthdays give the journey its rhythm
     for (let n = 10; n <= 50; n += 10) {
       const b = new Date(S.birth), d = new Date(b.getFullYear() + n, b.getMonth(), b.getDate(), 12).getTime();
-      if (d < S.death && !list.some(i => Math.abs(i._t - d) < YEAR / 2)) list.push({ id: 'auto' + n, auto: true, title: `${n}. Geburtstag`, date: new Date(d).toISOString().slice(0, 10), _t: d, cat: 'freude' });
+      if (d < S.death && d <= S.t && !list.some(i => Math.abs(i._t - d) < YEAR / 2)) list.push({ id: 'auto' + n, auto: true, title: `${n}. Geburtstag`, date: new Date(d).toISOString().slice(0, 10), _t: d, cat: 'freude' });
     }
     list.sort((a, b) => a._t - b._t);
   }
@@ -500,7 +500,7 @@ function renderDetail() {
       for (const i of spans) h += `<p>Dort läuft gerade <b>${esc(i.title)}</b>: ${spanWhere(i, seen)}.</p>`;
       const soon = S.items.find(i => i._e && i._t > seen);
       if (soon) h += `<p>Demnächst beginnt dort <b>${esc(soon.title)}</b> - in ${dur(soon._t - seen)}.</p>`;
-      const ev = S.items.filter(i => !i._e), prev = ev.filter(i => i._t <= seen).pop(), next = ev.find(i => i._t > seen);
+      const ev = S.items.filter(i => !i._e && !i.photoOnly), prev = ev.filter(i => i._t <= seen).pop(), next = ev.find(i => i._t > seen);
       if (prev) h += `<p>Zuletzt hier angekommen: ${esc(prev.title)} - vor ${dur(seen - prev._t)}.</p>`;
       if (next) h += `<p>Als Nächstes zu sehen: <b>${esc(next.title)}</b> - in ${dur(next._t - seen)}.</p>`;
       if (star) h += `<p class="muted">Und das Licht, das heute Nacht von ${esc(o.n)} bei uns ankommt, ist an genau diesem Tag dort aufgebrochen.</p>`;
@@ -546,7 +546,7 @@ function renderSoon() {
     if (next < today) next.setFullYear(next.getFullYear() + 1);
     return { i, inDays: Math.round((next - today) / 864e5), years: next.getFullYear() - d.getFullYear() };
   }).filter(a => a.inDays <= 30 && a.years >= 1).sort((a, b) => a.inDays - b.inDays);
-  const annRow = a => `<li data-id="${a.i.id}"><span class="swatch" style="background:${catColor(a.i.cat)}"></span><div><span class="when">${a.inDays === 0 ? 'Heute' : a.inDays === 1 ? 'Morgen' : `In ${a.inDays} Tagen`}</span><br>
+  const annRow = a => `<li data-id="${esc(a.i.id)}"><span class="swatch" style="background:${catColor(a.i.cat)}"></span><div><span class="when">${a.inDays === 0 ? 'Heute' : a.inDays === 1 ? 'Morgen' : `In ${a.inDays} Tagen`}</span><br>
     ${a.i.id === 'birth' ? `Annas ${a.years}. Geburtstag` : `${esc(a.i.title)} - ${a.inDays === 0 ? 'heute' : 'dann'} vor ${a.years} ${a.years === 1 ? 'Jahr' : 'Jahren'}`}</div></li>`;
   $('#dock [data-panel=soon]').classList.toggle('dot', days.some(a => a.inDays === 0) || next.some(a => a.at - t < 864e5));
   el.innerHTML = `${tonight ? `<h3 style="margin-top:0">Heute Nacht am Himmel</h3><ul class="list">${tonight}</ul>` : ''}
@@ -591,7 +591,7 @@ function renderMoments() {
   const tools = `${withPhotos.length ? `<div class="tabs"><button data-tab="list" class="${momentsTab === 'list' ? 'on' : ''}">Alle Momente</button><button data-tab="wall" class="${momentsTab === 'wall' ? 'on' : ''}">Fotos (${withPhotos.reduce((n, i) => n + i.photos.length, 0)})</button></div>` : ''}
     ${S.items.length > 6 && momentsTab === 'list' ? `<input type="text" id="find" placeholder="Suchen - z. B. Hochzeit oder 1998" value="${esc(momentsFind)}" style="margin-bottom:8px">` : ''}`;
   if (momentsTab === 'wall' && withPhotos.length) {
-    el.innerHTML = tools + `<div class="photos wall">${withPhotos.flatMap(i => i.photos.map(p => `<figure data-id="${i.id}"><img data-photo="${esc(p)}" alt="" loading="lazy"><figcaption>${i.date.slice(0, 4)}, ${esc(i.title)}</figcaption></figure>`)).join('')}</div>`;
+    el.innerHTML = tools + `<div class="photos wall">${withPhotos.flatMap(i => i.photos.map(p => `<figure data-id="${esc(i.id)}"><img data-photo="${esc(p)}" alt="" loading="lazy"><figcaption>${i.date.slice(0, 4)}, ${esc(i.title)}</figcaption></figure>`)).join('')}</div>`;
     hydrate(el);
     $$('figure[data-id]', el).forEach(f => { $('img', f).onclick = () => select(S.items.find(i => i.id === f.dataset.id)); });
     $$('[data-tab]', el).forEach(b => b.onclick = () => { momentsTab = b.dataset.tab; renderMoments(); });
@@ -600,9 +600,9 @@ function renderMoments() {
   momentsTab = 'list';
   el.innerHTML = (can ? '<p class="row"><button class="primary" id="add">Einen Moment hinzufügen</button><button id="addPhotos">Nur Fotos hinzufügen</button></p>'
     : '<p class="muted">Wer Anna kannte, kann hier eigene Erinnerungen hinzufügen - dafür bitte unten auf „Anmelden“ tippen.</p>')
-    + tools + sorter + (shown.length ? '' : '<p class="muted">Zu dieser Auswahl gibt es keine Momente.</p>') + `<ul class="list">${shown.map(i => `<li data-id="${i.id}"><span class="swatch ${i._e ? 'span' : ''}" style="background:${catColor(i.cat)}"></span>
+    + tools + sorter + (shown.length ? '' : '<p class="muted">Zu dieser Auswahl gibt es keine Momente.</p>') + `<ul class="list">${shown.map(i => `<li data-id="${esc(i.id)}"><span class="swatch ${i._e ? 'span' : ''}" style="background:${catColor(i.cat)}"></span>
       <div style="flex:1">${esc(i.title)} ${lock(i)}<small>${range(i)}${i.photos?.length ? `, ${i.photos.length} Foto${i.photos.length > 1 ? 's' : ''}` : ''}</small></div>
-      ${store.canEdit(i) ? `<button data-edit="${i.id}" style="padding:4px 10px;font-size:13px">Bearbeiten</button>` : ''}</li>`).join('')}</ul>`;
+      ${store.canEdit(i) ? `<button data-edit="${esc(i.id)}" style="padding:4px 10px;font-size:13px">Bearbeiten</button>` : ''}</li>`).join('')}</ul>`;
   $$('li[data-id]', el).forEach(li => li.onclick = () => select(S.items.find(i => i.id === li.dataset.id)));
   $$('[data-tab]', el).forEach(b => b.onclick = () => { momentsTab = b.dataset.tab; renderMoments(); });
   $$('[data-sort]', el).forEach(b => b.onclick = () => { momentsSort = b.dataset.sort; try { localStorage.setItem('annas-licht-sortierung', momentsSort); } catch { /* ignore */ } renderMoments(); });
@@ -614,10 +614,12 @@ function renderMoments() {
 }
 
 async function prepPhoto(file) {
-  const bmp = await createImageBitmap(file), k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+  const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }), k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));      // upright, as the camera meant it
   const c = Object.assign(document.createElement('canvas'), { width: Math.round(bmp.width * k), height: Math.round(bmp.height * k) });
   c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  bmp.close?.();
   const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.85));
+  if (!blob) throw new Error(`Das Foto „${file.name}“ konnte nicht verarbeitet werden.`);
   return new Uint8Array(await blob.arrayBuffer());
 }
 
@@ -709,7 +711,7 @@ function editItem(item) {
       const { _t, _e, ...base } = i;
       const saved = await store.saveItem({
         ...base, title: f.title.value.trim(), date: withTime(date, time), period: !!f.period.value,
-        end: withTime(end, endtime), photoOnly: !!base.photoOnly && f.title.value.trim() === 'Fotos', cat: f.cat.value, imp: +f.imp.value, text: f.text.value.trim(), vis: f.vis.value, photos: keep,
+        end: withTime(end, endtime), photoOnly: !!base.photoOnly && f.title.value.trim() === 'Fotos', approx: !!base.approx && withTime(date, time) === base.date, cat: f.cat.value, imp: +f.imp.value, text: f.text.value.trim(), vis: f.vis.value, photos: keep,
       }, photos, removed);
       rebuild(); select(S.items.find(x => x.id === saved.id));
     } catch (err) { fail(err); }
@@ -803,7 +805,7 @@ function renderLogin() {
   };
   if (!s && !st.users.users.length) {
     el.innerHTML = `<p>Diese Seite ist noch nicht eingerichtet. Mit dem ersten Zugang wird der Schlüssel erzeugt, der alle privaten Erinnerungen schützt.</p>
-      <form><label>Dein Name<input type="text" name="name" required autocomplete="username"></label>
+      <form method="post"><label>Dein Name<input type="text" name="name" required autocomplete="username"></label>
       <label>Passwort (am besten ein ganzer Satz)<input type="password" name="pass" required minlength="10" autocomplete="new-password"></label>
       <label>GitHub-Zugriffstoken (nur „Contents: Read and write“ für dieses Repository)<input type="password" name="token" required autocomplete="off"></label>
       <p class="status"></p><button class="primary">Einrichten</button></form>`;
@@ -812,7 +814,7 @@ function renderLogin() {
   }
   if (!s) {
     el.innerHTML = `<p>Mit einem Zugang siehst du alle Erinnerungen und Fotos und kannst eigene hinzufügen.</p>
-      <form><label>Name<input type="text" name="name" required autocomplete="username"></label>
+      <form method="post"><label>Name<input type="text" name="name" required autocomplete="username"></label>
       <label>Passwort<input type="password" name="pass" required autocomplete="current-password"></label>
       <label class="row" style="display:flex;color:var(--text)"><input type="checkbox" name="keep" checked> Auf diesem Gerät angemeldet bleiben</label>
       <p class="status"></p><button class="primary">Anmelden</button></form>
@@ -820,12 +822,12 @@ function renderLogin() {
     $('form', el).onsubmit = e => { e.preventDefault(); const f = e.target; act($('.status', el), 'Einen Moment ...', () => store.login(f.name.value, f.pass.value, f.keep.checked)); };
     return;
   }
-  let h = `<p>Angemeldet als <b>${esc(s.name)}</b> <span class="tag">${ROLES[s.role]}</span></p><p><button id="out">Abmelden</button></p>`;
+  let h = `<p>Angemeldet als <b>${esc(s.name)}</b> <span class="tag">${ROLES[s.role] || ''}</span></p><p><button id="out">Abmelden</button></p>`;
   if (s.role === 'admin') {
     const p = st.person, [bd, bt] = p.birth.split('T'), [dd, dt] = p.death.split('T');
-    h += `<h3>Zugänge</h3><ul class="list">${st.accounts.map(a => `<li style="cursor:default"><div style="flex:1">${esc(a.name)}<small>${ROLES[a.role]}</small></div>
-        ${a.id === s.id ? '' : `<button class="danger" data-rm="${a.id}">Entfernen</button>`}</li>`).join('')}</ul>
-      <form id="newUser"><h3>Neuen Zugang anlegen</h3>
+    h += `<h3>Zugänge</h3><ul class="list">${st.accounts.map(a => `<li style="cursor:default"><div style="flex:1">${esc(a.name)}<small>${ROLES[a.role] || ''}</small></div>
+        ${a.id === s.id ? '' : `<button class="danger" data-rm="${esc(a.id)}">Entfernen</button>`}</li>`).join('')}</ul>
+      <form id="newUser" method="post"><h3>Neuen Zugang anlegen</h3>
         <label>Name<input type="text" name="name" required autocomplete="off"></label>
         <label>Passwort<input type="text" name="pass" required minlength="8" autocomplete="off"></label>
         <label>Darf ...<select name="role"><option value="editor">Erinnerungen ansehen und hinzufügen</option><option value="viewer">Erinnerungen nur ansehen</option><option value="admin">alles verwalten</option></select></label>
@@ -840,6 +842,10 @@ function renderLogin() {
         <div class="two"><label>Geboren am${dateInput('bd', bd, true)}</label><label>Uhrzeit${timeInput('bt', bt)}</label></div>
         <div class="two"><label>Letztes Licht am${dateInput('dd', dd, true)}</label><label>Uhrzeit${timeInput('dt', dt)}</label></div>
         <p class="status"></p><button class="primary">Grunddaten speichern</button></form>
+      <form id="token" method="post"><h3>GitHub-Zugang erneuern</h3>
+        <p class="muted" style="margin-top:0">Der Token, mit dem diese Seite speichert, läuft irgendwann ab; das Datum steht bei GitHub unter „Personal access tokens“. Danach kann niemand mehr speichern, ansehen geht weiter. Hier einen neuen Token eintragen (nur „Contents: Read and write“ für dieses Repository): Er gilt sofort für alle Zugänge, die speichern dürfen.</p>
+        <label>Neuer Token<input type="password" name="token" required autocomplete="off"></label>
+        <p class="status"></p><button class="primary">Token speichern</button></form>
       <p class="fine">Ein entfernter Zugang kann sich nicht mehr anmelden. Wer ganz sicher ausgesperrt werden soll, braucht zusätzlich einen neuen GitHub-Token.</p>`;
   }
   el.innerHTML = h;
@@ -870,6 +876,7 @@ function renderLogin() {
     e.preventDefault();
     act($('#cats .status'), 'Wird gespeichert ...', () => store.setCats(cats.map(c => ({ id: c.id, name: c.name.trim(), color: c.color }))));
   };
+  $('#token').onsubmit = e => { e.preventDefault(); const f = e.target; act($('.status', f), 'Wird geprüft und gespeichert ...', () => store.setToken(f.token.value)); };
   $('#person').onsubmit = e => {
     e.preventDefault(); const f = e.target, j = (d, t) => (t ? `${d}T${t}` : d), st2 = $('.status', f);
     const b = readDate(f.bd.value), d = readDate(f.dd.value), bt2 = readTime(f.bt.value), dt2 = readTime(f.dt.value);
@@ -914,7 +921,7 @@ async function init() {
   S.sky = sky;
   await store.load();
   await store.restore().then(() => store.state.session && store.load(true)).catch(e => console.error(e));
-  if (/^(localhost|127\.)/.test(location.hostname) && location.hash.includes('demo')) store.state.items = DEMO;   // made-up moments for testing on the own computer
+  if (LOCAL && location.hash.includes('demo')) store.state.items = DEMO;   // made-up moments for testing on the own computer
   rebuild();
   setInterval(renderLead, 200);
   setInterval(() => { if (!$('#p-soon').hidden) renderSoon(); }, 60000);
@@ -938,4 +945,7 @@ async function init() {
   }
   if (pickName) select(S.stars.find(s => s.n === decodeURIComponent(pickName)) || bodies.find(b => b.name === decodeURIComponent(pickName)) || S.items.find(i => i.title === decodeURIComponent(pickName)));
 }
-init();
+init().catch(e => {
+  console.error(e);
+  $('#lead').textContent = 'Die Seite konnte nicht vollständig geladen werden. Bitte die Verbindung prüfen und neu laden.';
+});

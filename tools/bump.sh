@@ -1,6 +1,3 @@
 #!/bin/sh
-# Gives all files of the page a new version, so that browsers load the new files together.
-# Run from the repository root before committing a change to the page:  sh tools/bump.sh
-v=$(date +%Y%m%d%H%M%S)
-sed -i -E "s/\\?v=[0-9a-z]+/?v=$v/g" index.html
-echo "version $v"
+# Gives all files of the page a new version (see tools/bump.py). Run from the repository root before committing a change to the page.
+exec python3 "$(dirname "$0")/bump.py"

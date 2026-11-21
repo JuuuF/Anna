@@ -1,17 +1,18 @@
 // Round-trip test of the data layer against an in-memory stand-in for GitHub.  Run: node tools/test_store.mjs
 import assert from 'node:assert';
-const files = new Map(), blobs = new Map(); let head = 1, commits = 0;
+const files = new Map(), blobs = new Map(), valid = new Set(['Bearer TOKEN']); let head = 1, commits = 0;
 const mem = new Map(); globalThis.localStorage = { getItem: k => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v), removeItem: k => mem.delete(k) };
 const res = (status, body) => ({ ok: status < 300, status, json: async () => body, arrayBuffer: async () => body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength) });
 globalThis.fetch = async (url, opt = {}) => {
   const u = String(url), body = opt.body && JSON.parse(opt.body);
   if (!u.startsWith('https://')) { const f = files.get(u.split('?')[0]); return f ? res(200, f) : res(404, new Uint8Array()); }
-  assert.equal(opt.headers.Authorization, 'Bearer TOKEN');
+  if (!valid.has(opt.headers.Authorization)) return res(401, {});
   const p = u.replace('https://api.github.com/repos/JuuuF/Annas-Licht', '');
   if (p.startsWith('/contents/')) { const path = p.slice(10).split('?')[0]; return files.has(path) ? res(200, { sha: 'f:' + path }) : res(404, {}); }
   if (p.startsWith('/git/blobs/f:')) return res(200, { content: Buffer.from(files.get(p.slice(13))).toString('base64').replace(/(.{60})/g, '$1\n') });
   if (p === '/git/ref/heads/main') return res(200, { object: { sha: 'c' + head } });
   if (p.startsWith('/git/commits/')) return res(200, { tree: { sha: 't' } });
+  if (p.startsWith('/git/trees/')) return res(200, { tree: [...files.keys()].map(path => ({ path })) });
   if (p === '/git/blobs') { const sha = 'b' + blobs.size; blobs.set(sha, Uint8Array.from(atob(body.content), c => c.charCodeAt(0))); return res(201, { sha }); }
   if (p === '/git/trees') { blobs.set('pending', body.tree); return res(201, { sha: 't' }); }
   if (p === '/git/commits') { assert.equal(body.parents[0], 'c' + head); return res(201, { sha: 'c' + (head + 1) }); }
@@ -66,4 +67,29 @@ await store.logout(); await store.login('Gast', 'nur gucken', true);
 assert.ok(!store.canWrite() && store.state.items.length === 2);
 await assert.rejects(store.saveItem({ title: 'x', date: '2000-01-01', vis: 'private' }), /anmelden/);
 await store.logout(); assert.equal(mem.size, 0);
+
+// a photo file that is already gone must not block deleting its moment
+await store.login('Justin', 'ein langes passwort', false);
+const lost = await store.saveItem({ title: 'Foto fehlt', date: '2001-01-01', vis: 'private', photos: [] }, [jpg]);
+files.delete(lost.photos[0]);
+await store.deleteItem(lost);
+assert.ok(!store.state.items.some(i => i.id === lost.id));
+
+// the token expires: reading still works for everyone, saving explains itself, and a new token repairs all accounts at once
+valid.clear();
+await store.logout();
+await store.login('Papa', 'sternenlicht', false);
+assert.equal(store.state.items.length, 2, 'memories stay readable without a valid token');
+await assert.rejects(store.saveItem({ title: 'geht nicht', date: '2002-02-02', vis: 'private' }), /abgelaufen/);
+assert.equal(store.state.items.length, 2);
+await store.logout(); await store.login('Justin', 'ein langes passwort', false);
+valid.add('Bearer NEU');
+await store.setToken('NEU');
+assert.ok(!text('data/users.json').includes('NEU'), 'the new token is stored sealed');
+await store.logout(); await store.login('Papa', 'sternenlicht', false);
+const again = await store.saveItem({ title: 'geht wieder', date: '2002-02-02', vis: 'private' });
+assert.equal(again.by, 'Papa');
+await store.logout(); await store.login('Gast', 'nur gucken', false);
+assert.ok(!store.canWrite(), 'a viewer does not get the replacement token');
+await store.logout();
 console.log('ok -', commits, 'commits');

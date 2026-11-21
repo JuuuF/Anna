@@ -17,7 +17,8 @@ export const CATS = {};
 // list = [{ id, name, color }] as saved, or nothing for the starting set; "sonst" always exists as the fallback
 export function applyCats(list) {
   for (const k of Object.keys(CATS)) delete CATS[k];
-  if (list?.length) for (const c of list) CATS[c.id] = [c.name, c.color];
+  // colours end up in style attributes and canvas code: only plain #rrggbb is accepted
+  if (list?.length) for (const c of list) CATS[c.id] = [String(c.name ?? ''), /^#[0-9a-f]{6}$/i.test(c.color) ? c.color : START_CATS.sonst[1]];
   else for (const [k, v] of Object.entries(START_CATS)) CATS[k] = [...v];
   if (!CATS.sonst) CATS.sonst = [...START_CATS.sonst];
 }

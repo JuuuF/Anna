@@ -16,7 +16,7 @@ Repository ausschließlich verschlüsselt (`data/private.enc`, `media/*.bin`) un
 | `data/public.json` | öffentliche Eckdaten und Momente |
 | `data/users.json` | je Zugang eine versiegelte Box (öffnet sich nur mit Name + Passwort) |
 
-Vor jeder Änderung an der Seite `sh tools/bump.sh` ausführen (gibt allen Dateien eine gemeinsame Versionsnummer).
+Vor jeder Änderung an der Seite `sh tools/bump.sh` ausführen: Das gibt allen Dateien eine gemeinsame Versionsnummer und erneuert den Fingerabdruck der Import-Map in der Content-Security-Policy von `index.html`.
 Bildschirmfotos in vier Gerätegrößen: `sh tools/shots.sh <Ordner> <Name> '#demo'`.
 
 Lokal ansehen: `python3 -m http.server` und <http://localhost:8000> öffnen.
@@ -32,3 +32,10 @@ Datenschicht testen: `node tools/test_store.mjs`.
 
 Sterndaten: [HYG-Datenbank](https://github.com/astronexus/HYG-Database) (Hipparcos, Yale Bright Star, Gliese; CC BY-SA 4.0) und
 [NASA Exoplanet Archive](https://exoplanetarchive.ipac.caltech.edu/). Sternbildlinien: [d3-celestial](https://github.com/ofrohn/d3-celestial) (BSD-3).
+
+## Sicherheit in Kürze
+
+- Private Erinnerungen und Fotos liegen nur verschlüsselt im Repository; den Schlüssel bekommt nur, wer Name und Passwort eines Zugangs kennt. Die Passwörter sollten lang sein, denn die verschlüsselten Dateien sind öffentlich abrufbar.
+- Der GitHub-Token zum Speichern steckt verschlüsselt in den Zugängen. Er läuft irgendwann ab: Dann geht Ansehen weiter, Speichern nicht. Unter „Anmelden“ kann die Verwaltung einen neuen Token eintragen, der sofort für alle gilt.
+- Die Seite lädt nichts von fremden Servern außer den Wetterdaten (Open-Meteo) und spricht sonst nur mit GitHub; eine Content-Security-Policy erzwingt das.
+- Die Rollen (Verwaltung, Mitgestalten, Nur ansehen) sind eine Hilfe der Oberfläche, keine harte Grenze.

@@ -51,7 +51,12 @@ async function gh(path, opt = {}) {
       Accept: opt.raw ? 'application/vnd.github.raw+json' : 'application/vnd.github+json',
     },
   });
-  if (!r.ok) { const e = new Error(`GitHub antwortet mit Fehler ${r.status}`); e.status = r.status; throw e; }
+  if (!r.ok) {
+    const e = new Error(r.status === 401 ? 'Der GitHub-Zugang, mit dem diese Seite speichert, ist abgelaufen oder ungültig. Ansehen geht weiter; zum Speichern muss in der Verwaltung ein neuer Token eingetragen werden.'
+      : r.status === 403 || r.status === 429 ? 'GitHub nimmt gerade nichts an (zu viele Anfragen oder fehlende Berechtigung). Bitte in ein paar Minuten noch einmal versuchen.'
+        : `GitHub antwortet mit Fehler ${r.status}`);
+    e.status = r.status; throw e;
+  }
   return opt.raw ? new Uint8Array(await r.arrayBuffer()) : r.json();
 }
 // Exact bytes of a file. The "contents" endpoint re-encodes files it takes for text (it corrupted our ciphertext),
@@ -63,23 +68,30 @@ async function fromRepo(path) {
   } catch (e) { if (e.status === 404) return null; throw e; }
 }
 
-// fresh = read straight from the repository (needs a token), otherwise from the published page
-async function readBytes(path, fresh) {
+// fresh = read straight from the repository (needs a token), otherwise from the published page.
+// Looking at the page must never depend on the token: if the repository cannot be asked (token expired, GitHub unreachable),
+// the published page is read instead. Only saving (strict) insists on the freshest state and fails otherwise.
+async function readBytes(path, fresh, strict = false) {
   const token = state.session?.token;
-  if (fresh && token) return fromRepo(path);
+  if (fresh && token) {
+    try { return await fromRepo(path); } catch (e) { if (strict) throw e; }
+  }
   const r = await fetch(`${path}?v=${Date.now()}`, { cache: 'no-store' }).catch(() => null);
   if (r?.ok) return new Uint8Array(await r.arrayBuffer());
-  return token ? fromRepo(path) : null;
+  return token && !fresh ? fromRepo(path).catch(() => null) : null;
 }
-const readJson = async (path, fresh) => { const b = await readBytes(path, fresh); return b && JSON.parse(td.decode(b)); };
+const readJson = async (path, fresh, strict) => { const b = await readBytes(path, fresh, strict); return b && JSON.parse(td.decode(b)); };
 
 // one commit for any number of files; bytes === null deletes a file
 async function commit(files) {
   const ref = await gh(`/git/ref/heads/${BRANCH}`);
   const base = await gh(`/git/commits/${ref.object.sha}`);
   const tree = [];
+  // GitHub refuses a commit that deletes a file which is not there (a photo already removed elsewhere): only delete what exists
+  const there = files.some(f => !f.bytes) ? new Set((await gh(`/git/trees/${base.tree.sha}?recursive=1`)).tree.map(t => t.path)) : null;
   for (const f of files) {
-    const sha = f.bytes ? (await gh('/git/blobs', { method: 'POST', body: { content: b64(f.bytes), encoding: 'base64' } })).sha : null;
+    if (!f.bytes) { if (there.has(f.path)) tree.push({ path: f.path, mode: '100644', type: 'blob', sha: null }); continue; }
+    const sha = (await gh('/git/blobs', { method: 'POST', body: { content: b64(f.bytes), encoding: 'base64' } })).sha;
     tree.push({ path: f.path, mode: '100644', type: 'blob', sha });
   }
   const t = await gh('/git/trees', { method: 'POST', body: { base_tree: base.tree.sha, tree } });
@@ -88,16 +100,20 @@ async function commit(files) {
 }
 
 // ---------- loading ----------
-export async function load(fresh = false) {
-  const pub = await readJson('data/public.json', fresh);
-  const users = await readJson('data/users.json', fresh);
+export async function load(fresh = false, strict = false) {
+  const pub = await readJson('data/public.json', fresh, strict);
+  const users = await readJson('data/users.json', fresh, strict);
+  // before saving: never continue with a state that could not be read completely, it would be written back as "empty"
+  if (strict && (!pub || !users)) throw new Error('Der aktuelle Stand konnte nicht vollständig gelesen werden. Es wurde nichts gespeichert.');
   if (users) state.users = users;
+  await adoptToken();
   if (pub?.person) state.person = pub.person;
   if (pub) state.cats = pub.cats || null;
   let items = (pub?.items || []).map(i => ({ ...i, vis: 'public' }));
   state.accounts = [];
   if (contentKey) {
-    const raw = await readBytes('data/private.enc', fresh);
+    const raw = await readBytes('data/private.enc', fresh, strict);
+    if (strict && !raw && state.users.users.length) throw new Error('Die geschützten Erinnerungen konnten nicht gelesen werden. Es wurde nichts gespeichert.');
     if (raw) {
       const doc = JSON.parse(td.decode(await unseal(contentKey, raw)));
       items = items.concat(doc.items.map(i => ({ ...i, vis: 'private' })));
@@ -112,7 +128,7 @@ async function persist(mutate, files = [], withUsers = false) {
   if (!state.session?.token) throw new Error('Zum Speichern bitte anmelden.');
   const strip = vis => state.items.filter(i => i.vis === vis).map(({ vis: _, ...i }) => i);
   for (let n = 0; ; n++) {
-    await load(true);
+    await load(true, true);
     mutate();
     const out = [...files,
       { path: 'data/public.json', bytes: te.encode(JSON.stringify({ person: state.person, ...(state.cats ? { cats: state.cats } : {}), items: strip('public') }, null, 1)) },
@@ -129,7 +145,25 @@ const local = () => { try { return globalThis.localStorage; } catch { return nul
 async function start(session, remember) {
   state.session = session;
   contentKey = await aesKey(unb64(session.key));
+  await adoptToken();
   if (remember) local()?.setItem(KEEP, JSON.stringify(session));
+}
+// The GitHub token expires sooner or later. A replacement is kept in data/users.json, sealed with the content key,
+// and takes the place of the token inside each account's box - otherwise every account would have to be created anew.
+let adopting = true;
+async function adoptToken() {
+  const s = state.session;
+  if (!adopting || !s || !contentKey || s.role === 'viewer' || !state.users.token) return;
+  try { const t = td.decode(await unseal(contentKey, unb64(state.users.token))); if (t) s.token = t; } catch { /* not ours to read */ }
+}
+export async function setToken(token) {
+  const old = state.session.token, fresh = token.trim();
+  adopting = false; state.session.token = fresh;
+  try {
+    const sealed = b64(await seal(contentKey, te.encode(fresh)));
+    await persist(() => { state.users.token = sealed; }, [], true);
+    if (local()?.getItem(KEEP)) local().setItem(KEEP, JSON.stringify(state.session));
+  } catch (e) { state.session.token = old; throw e; } finally { adopting = true; }
 }
 export async function restore() {
   const saved = local()?.getItem(KEEP);
