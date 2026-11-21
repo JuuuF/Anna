@@ -26,6 +26,16 @@
    "color": "#f3c98b"
   },
   {
+   "id": "t2ud46o",
+   "name": "Bingo!",
+   "color": "#b9c7a0"
+  },
+  {
+   "id": "to3lcyr",
+   "name": "Hausumbau",
+   "color": "#b9c7a0"
+  },
+  {
    "id": "krankheit",
    "name": "Krankheit",
    "color": "#9a93b5"
@@ -34,11 +44,6 @@
    "id": "sonst",
    "name": "Sonstiges",
    "color": "#d8d2c4"
-  },
-  {
-   "id": "t2ud46o",
-   "name": "Bingo!",
-   "color": "#b9c7a0"
   }
  ],
  "items": [
