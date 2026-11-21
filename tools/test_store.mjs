@@ -66,4 +66,4 @@ await store.logout(); await store.login('Gast', 'nur gucken', true);
 assert.ok(!store.canWrite() && store.state.items.length === 2);
 await assert.rejects(store.saveItem({ title: 'x', date: '2000-01-01', vis: 'private' }), /anmelden/);
 await store.logout(); assert.equal(mem.size, 0);
-console.log('ok –', commits, 'commits');
+console.log('ok -', commits, 'commits');

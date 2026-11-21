@@ -1,11 +1,11 @@
 // The sky above Neumünster as you would see it standing there: you look around from the ground.
 // Which of the stars you can see tonight are watching Anna right now?
-import { YEAR, starColor, placeLabels } from './util.js';
-import { NMS, lstDeg, altaz, sunMoon } from './astro.js';
+import { NMS, altaz, lstDeg, sunMoon } from './astro.js';
+import { YEAR, placeLabels, starColor } from './util.js';
 
 const RAD = Math.PI / 180;
 // az/alt: where you look (degrees), t*: where the view is gliding to, zoom: 1 = 70° field of view (top to bottom),
-// min: lowest allowed gaze – the horizon never rises above the lower edge of the picture
+// min: lowest allowed gaze - the horizon never rises above the lower edge of the picture
 export const skyCam = { az: 180, alt: 30, taz: 180, talt: 0, zoom: 1, tzoom: 1, S: 300, min: 0 };
 export const weather = { on: false, hours: null, now: null, failed: false };
 
@@ -81,7 +81,7 @@ for (let l = 0; l < 360; l += 2) for (let k = 0; k < 2; k++) {
 // ---- constellations ----
 // The figures everybody knows are always drawn faintly; all others appear when you look their way.
 const KNOWN = new Set(['UMa', 'UMi', 'Ori', 'Cas', 'Cyg', 'Lyr', 'Aql', 'Leo', 'Tau', 'Gem', 'CMa', 'Peg', 'And', 'Per', 'Aur', 'Boo', 'Sco', 'Vir']);
-const focus = new Map();            // constellation id -> 0…1, how much it is "looked at" (eased over time)
+const focus = new Map();            // constellation id -> 0...1, how much it is "looked at" (eased over time)
 let art = null;                      // drawings of the figures, tied to three stars each (see tools/build_art.py)
 const pictures = new Map();
 if (typeof fetch === 'function' && typeof document !== 'undefined') fetch('data/art.json').then(r => r.json()).then(a => { art = a; }).catch(() => { art = {}; });
@@ -239,10 +239,10 @@ export function drawSky(ctx, W, H, S) {
     ctx.fillStyle = '#f3f0e4'; ctx.beginPath(); ctx.arc(0, 0, rm, -Math.PI / 2, Math.PI / 2);
     ctx.ellipse(0, 0, rm * Math.abs(1 - 2 * sm.lit), rm, 0, Math.PI / 2, -Math.PI / 2, sm.lit < 0.5); ctx.fill();
     ctx.restore();
-    labels.push({ x: moonP[0], y: moonP[1] + rm + 16, text: `Mond · ${Math.round(sm.lit * 100)} %`, color: 'rgba(235,238,245,.85)', font: '13px "Source Sans 3", system-ui, sans-serif', prio: 60 });
+    labels.push({ x: moonP[0], y: moonP[1] + rm + 16, text: `Mond, ${Math.round(sm.lit * 100)} %`, color: 'rgba(235,238,245,.85)', font: '13px "Source Sans 3", system-ui, sans-serif', prio: 60 });
   }
 
-  // the stars that can see her – only those visible to the naked eye
+  // the stars that can see her - only those visible to the naked eye
   for (const s of S.stars) {
     if (s.mag > 6) continue;
     const p = star(s.ra, s.dec);
@@ -254,7 +254,7 @@ export function drawSky(ctx, W, H, S) {
       glow.addColorStop(0, 'rgba(255,215,150,.7)'); glow.addColorStop(1, 'rgba(255,215,150,0)');
       ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(p[0], p[1], rad * 5.5, 0, 7); ctx.fill();
       ctx.fillStyle = '#ffe9c4'; ctx.beginPath(); ctx.arc(p[0], p[1], rad, 0, 7); ctx.fill();
-      labels.push({ x: p[0], y: p[1] - rad - 7, text: `${s.n} · ${new Date(t - s.d * YEAR).getFullYear()}`, color: '#ffe3b5',
+      labels.push({ x: p[0], y: p[1] - rad - 7, text: `${s.n} (${new Date(t - s.d * YEAR).getFullYear()})`, color: '#ffe3b5',
         font: '13px EB Garamond, Georgia, serif', prio: on ? 100 : 30 - s.mag, force: on });
     } else if (on) labels.push({ x: p[0], y: p[1] - rad - 7, text: s.n, prio: 100, force: true });
     if (on) { ctx.strokeStyle = '#f3c98b'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(p[0], p[1], rad + 9, 0, 7); ctx.stroke(); }
@@ -313,7 +313,7 @@ export function drawSky(ctx, W, H, S) {
   placeLabels(ctx, labels);
   if (day > 0.3) {
     ctx.font = '13px "Source Sans 3", system-ui, sans-serif'; ctx.fillStyle = 'rgba(235,238,245,.9)'; ctx.textAlign = 'center';
-    ctx.fillText('Am Tag überstrahlt die Sonne die Sterne – sie stehen trotzdem genau dort.', cx, H - 196);
+    ctx.fillText('Am Tag überstrahlt die Sonne die Sterne - sie stehen trotzdem genau dort.', cx, H - 196);
   }
   return hits;
 }

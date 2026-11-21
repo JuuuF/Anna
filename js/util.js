@@ -22,7 +22,7 @@ export function applyCats(list) {
   if (!CATS.sonst) CATS.sonst = [...START_CATS.sonst];
 }
 applyCats();
-// how much a moment matters, 1 (a small thing) … 5 (a life event); birth and last light always count fully
+// how much a moment matters, 1 (a small thing) ... 5 (a life event); birth and last light always count fully
 export const weight = i => (i.fixed ? 5 : Math.min(5, Math.max(1, i.imp || 1)));
 export const WEIGHTS = ['eine Kleinigkeit', 'ein schöner Moment', 'wichtig', 'sehr wichtig', 'ein Lebensereignis'];
 // Which photo should the picture frame show next? By chance, but photos of important moments come up more often.
@@ -77,7 +77,7 @@ export function fmtWhen(s) {
   return fmtDate(d) + (s.length > 10 ? `, ${d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr` : '');
 }
 
-// "in 14 Tagen" / "vor 3 Monaten" – returns the part after in/vor (dative)
+// "in 14 Tagen" / "vor 3 Monaten" - returns the part after in/vor (dative)
 export function dur(ms) {
   const d = Math.abs(ms) / 864e5, one = (n, s, p) => (n === 1 ? s : n + ' ' + p);
   if (d < 1 / 24) return one(Math.max(1, Math.round(d * 1440)), 'einer Minute', 'Minuten');

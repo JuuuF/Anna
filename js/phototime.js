@@ -13,8 +13,8 @@ function day(y, m, d, hh = 12, mm = 0, ss = 0) {
 
 /**
  * @param {string} name  file name, e.g. "IMG-20190812-WA0003.jpg" or "WhatsApp Image 2019-08-12 at 14.30.25.jpeg"
- * @param {number} from  earliest plausible moment (ms) – her birth
- * @param {number} to    latest plausible moment (ms) – her last light
+ * @param {number} from  earliest plausible moment (ms) - her birth
+ * @param {number} to    latest plausible moment (ms) - her last light
  * @returns {{date: string, time: string}|null}  time is '' when the name only holds a day
  */
 export function timeFromName(name, from, to) {
@@ -27,22 +27,22 @@ export function timeFromName(name, from, to) {
   const clock = (h, ap) => (ap ? (+h % 12) + (/p/i.test(ap) ? 12 : 0) : +h);
   let m;
 
-  // 20190812_143025 · IMG_20190812_143025 · PXL_20210812_143025123 · 20190812143025 · IMG-20190812-WA0003 (day only)
+  // 20190812_143025, IMG_20190812_143025, PXL_20210812_143025123, 20190812143025, IMG-20190812-WA0003 (day only)
   const compact = /(?<!\d)((?:19|20)\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(?:[ _T-]?([01]\d|2[0-3])([0-5]\d)([0-5]\d)\d{0,3})?(?!\d)/g;
   while ((m = compact.exec(base))) add(4, local(m[1], m[2], m[3], m[4], m[5], m[6]), m[4] != null);
 
-  // 2019-08-12 at 14.30.25 · 2019-08-12 um 14.30.25 · 2019-08-12_14-30-25 · 2019.08.12 · Screenshot_2019-08-12-14-30-25 · … at 2.30.25 PM
+  // 2019-08-12 at 14.30.25, 2019-08-12 um 14.30.25, 2019-08-12_14-30-25, 2019.08.12, Screenshot_2019-08-12-14-30-25, ... at 2.30.25 PM
   const iso = /(?<!\d)((?:19|20)\d{2})[-._ ](0?[1-9]|1[0-2])[-._ ](0?[1-9]|[12]\d|3[01])(?!\d)(?:[ _T,-]*(?:at|um)?[ _-]*(\d{1,2})[.:h-](\d{2})(?:[.:-](\d{2}))?(?!\d)\s*([ap])?\.?m?\.?)?/gi;
   while ((m = iso.exec(base))) {
     const timed = m[4] != null && clock(m[4], m[7]) < 24 && +m[5] < 60;
     add(3, timed ? local(m[1], m[2], m[3], clock(m[4], m[7]), m[5], m[6]) : day(m[1], m[2], m[3]), timed);
   }
 
-  // 12.08.2019 · 12-08-2019 14.30 · 12_8_2019 (day first, the German way)
+  // 12.08.2019, 12-08-2019 14.30, 12_8_2019 (day first, the German way)
   const german = /(?<!\d)(0?[1-9]|[12]\d|3[01])[-._ ](0?[1-9]|1[0-2])[-._ ]((?:19|20)\d{2})(?!\d)(?:[ _T,-]*(?:um)?[ _-]*([01]?\d|2[0-3])[.:h-]([0-5]\d)(?:[.:-]([0-5]\d))?(?!\d))?/gi;
   while ((m = german.exec(base))) add(2, day(m[3], m[2], m[1], m[4] ?? 12, m[5] ?? 0, m[6] ?? 0), m[4] != null);
 
-  // FB_IMG_1565620225000 · 1565620225.jpg: seconds or milliseconds since 1970
+  // FB_IMG_1565620225000, 1565620225.jpg: seconds or milliseconds since 1970
   const epoch = /(?<!\d)(\d{13}|\d{10})(?!\d)/g;
   while ((m = epoch.exec(base))) add(1, new Date(m[1].length === 13 ? +m[1] : +m[1] * 1000), true);
 
@@ -76,7 +76,7 @@ export function timeFromExif(bytes, from, to) {
       if ((marker & 0xff00) !== 0xff00 || marker === 0xffda) break;
       p += 2 + size;
     }
-  } catch { /* not a readable JPEG – no harm done */ }
+  } catch { /* not a readable JPEG - no harm done */ }
   return null;
 }
 

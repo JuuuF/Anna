@@ -203,7 +203,7 @@ async function storePhoto(bytes, priv, files) {
   photoCache.set(path, Promise.resolve(bytes));
   return path;
 }
-// item.photos: paths to keep · newPhotos: JPEG bytes to add · removed: paths to delete
+// item.photos: paths to keep; newPhotos: JPEG bytes to add; removed: paths to delete
 // prepares one moment for saving: stores its photos the right way and collects the files to write
 async function stage(item, newPhotos, removed, files) {
   const priv = item.vis === 'private', photos = [];

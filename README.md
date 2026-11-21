@@ -1,6 +1,6 @@
 # Annas Licht
 
-Eine Erinnerungsseite: Wo ist das Licht von Annas Leben gerade unterwegs – und welcher Stern sieht in diesem Augenblick welchen Tag?
+Eine Erinnerungsseite: Wo ist das Licht von Annas Leben gerade unterwegs - und welcher Stern sieht in diesem Augenblick welchen Tag?
 
 Die Seite ist ein persönliches Geschenk für Familie und Freunde. Persönliche Erinnerungen und Fotos liegen in diesem
 Repository ausschließlich verschlüsselt (`data/private.enc`, `media/*.bin`) und sind nur mit einem Zugang lesbar.

@@ -15,8 +15,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Annas Licht">
   <!-- One version for all files: raise it with every change (tools/bump.sh) so browsers never mix old and new files. -->
-  <link rel="stylesheet" href="style.css?v=20261121111351">
-  <script type="importmap">{ "imports": { "./js/util.js": "./js/util.js?v=20261121111351", "./js/astro.js": "./js/astro.js?v=20261121111351", "./js/store.js": "./js/store.js?v=20261121111351", "./js/space.js": "./js/space.js?v=20261121111351", "./js/phototime.js": "./js/phototime.js?v=20261121111351", "./js/life.js": "./js/life.js?v=20261121111351", "./js/sky.js": "./js/sky.js?v=20261121111351" } }</script>
+  <link rel="stylesheet" href="style.css?v=20261121111907">
+  <script type="importmap">{ "imports": { "./js/util.js": "./js/util.js?v=20261121111907", "./js/astro.js": "./js/astro.js?v=20261121111907", "./js/store.js": "./js/store.js?v=20261121111907", "./js/space.js": "./js/space.js?v=20261121111907", "./js/phototime.js": "./js/phototime.js?v=20261121111907", "./js/life.js": "./js/life.js?v=20261121111907", "./js/sky.js": "./js/sky.js?v=20261121111907" } }</script>
 </head>
 <body>
   <canvas id="view" aria-label="Karte: Wo Annas Licht gerade unterwegs ist"></canvas>
@@ -58,11 +58,11 @@
 
   <aside id="yearcard" hidden></aside>
   <aside id="journey" hidden></aside>
-  <figure id="frame" hidden title="Bilder aus ihrem Leben – antippen, um den Moment zu öffnen">
+  <figure id="frame" hidden title="Bilder aus ihrem Leben - antippen, um den Moment zu öffnen">
     <img alt=""><img alt=""><figcaption></figcaption><i class="bar"></i>
     <button class="x" aria-label="Bilder ausblenden">×</button>
   </figure>
-  <div id="life" title="Ihr Leben von links nach rechts – ziehen, um eine Zeit auszuwählen"><canvas></canvas></div>
+  <div id="life" title="Ihr Leben von links nach rechts - ziehen, um eine Zeit auszuwählen"><canvas></canvas></div>
 
   <nav id="dock" aria-label="Inhalte">
     <button data-panel="moments">Momente</button>
@@ -77,24 +77,24 @@
   <section class="panel left" id="p-soon" hidden><header><h2>Heute bei Anna</h2><button class="x" aria-label="Schließen">×</button></header><div class="body"></div></section>
   <section class="panel bottom" id="p-time" hidden><header><h2>Zeitreise</h2><button class="x" aria-label="Schließen">×</button></header>
     <div class="body">
-      <p class="muted">Wie sah es früher aus – und wohin reist ihr Licht noch?</p>
+      <p class="muted">Wie sah es früher aus - und wohin reist ihr Licht noch?</p>
       <div class="row"><input type="range" id="offset" min="-60" max="60" step="0.02" value="0"><button id="resetTime">Jetzt</button></div>
       <p id="when">Jetzt</p>
     </div>
   </section>
   <section class="panel left" id="p-about" hidden><header><h2>Über diese Seite</h2><button class="x" aria-label="Schließen">×</button></header>
     <div class="body">
-      <p>Alles Licht, das Anna in ihrem Leben berührt hat, ist noch unterwegs. Es reist mit Lichtgeschwindigkeit hinaus ins All –
+      <p>Alles Licht, das Anna in ihrem Leben berührt hat, ist noch unterwegs. Es reist mit Lichtgeschwindigkeit hinaus ins All -
         und wer von einem fernen Stern aus zur Erde blickt, sieht sie dort in diesem Augenblick: als Kind, an ihrem Hochzeitstag, lachend im Sommer.</p>
       <p>Diese Karte zeigt, wo welcher Moment ihres Lebens gerade zu sehen ist. Ein Stern, der 25 Lichtjahre entfernt ist, sieht die Erde so, wie sie vor 25 Jahren war.</p>
       <p><strong>Für Familie und Freunde.</strong> Diese Seite ist ein persönliches Geschenk. Öffentlich sichtbar sind nur wenige Eckdaten.
-        Persönliche Erinnerungen und Fotos sind verschlüsselt und nur mit einem Zugang lesbar – wer Anna kannte und mitlesen oder etwas beitragen möchte, wendet sich bitte an die Familie.</p>
+        Persönliche Erinnerungen und Fotos sind verschlüsselt und nur mit einem Zugang lesbar - wer Anna kannte und mitlesen oder etwas beitragen möchte, wendet sich bitte an die Familie.</p>
       <h3>Zeichenerklärung</h3>
       <p><span class="dot lit"></span> Stern, der Anna gerade sieht (mit dem Jahr, das dort zu sehen ist)<br>
         <span class="dot"></span> Stern, den ihr Licht noch nicht erreicht hat<br>
         <span class="dot hz"></span> Stern mit einem möglicherweise lebensfreundlichen Planeten</p>
       <h3>Wie wahr ist das?</h3>
-      <p>Das Licht ist wirklich unterwegs, und die Sterne stehen wirklich dort. Sehen könnte man Anna aus dieser Entfernung mit keinem Teleskop, das wir uns vorstellen können –
+      <p>Das Licht ist wirklich unterwegs, und die Sterne stehen wirklich dort. Sehen könnte man Anna aus dieser Entfernung mit keinem Teleskop, das wir uns vorstellen können -
         aber das Licht trägt jeden ihrer Tage weiter, für immer.</p>
       <h3>Zum Mitnehmen</h3>
       <p><button id="savePic">Diese Ansicht als Bild speichern</button></p>
@@ -106,6 +106,6 @@
   <section class="panel left" id="p-login" hidden><header><h2>Für Familie &amp; Freunde</h2><button class="x" aria-label="Schließen">×</button></header><div class="body"></div></section>
 
   <div id="lightbox" hidden><img alt=""><div class="lbbar"><button data-lb="-1">Zurück</button><span id="lbcount"></span><button data-lb="1">Weiter</button><button data-lb="0">Schließen</button></div></div>
-  <script type="module" src="js/app.js?v=20261121111351"></script>
+  <script type="module" src="js/app.js?v=20261121111907"></script>
 </body>
 </html>

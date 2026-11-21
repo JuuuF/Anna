@@ -1,7 +1,7 @@
 // The 3D map: Earth in the centre, real star positions around it, and the light of a lifetime as a growing sphere.
-import { YEAR, LS, AU, catColor, starColor, placeLabels, weight } from './util.js';
-import { bodies, orbits, orbitPoints, moonPath, sun, vec } from './astro.js';
+import { bodies, moonPath, orbitPoints, orbits, sun, vec } from './astro.js';
 import { milky, mistSprite } from './sky.js';
+import { catColor, LS, placeLabels, starColor, weight, YEAR } from './util.js';
 
 // c: the point the camera looks at and turns around (light-years, Earth = 0), tc: where it is gliding to,
 // focus: an object to stay with (a star, a planet, a moment on the lifeline)
@@ -46,7 +46,7 @@ export function drawSpace(ctx, W, H, S) {
   const cyaw = Math.cos(cam.yaw), syaw = Math.sin(cam.yaw), cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
   const rot = v => {
     const x = v[0] * cyaw - v[1] * syaw, y = v[0] * syaw + v[1] * cyaw;
-    return [x, v[2] * cp + y * sp, y * cp - v[2] * sp];            // right, up, depth – the camera looks down from the north
+    return [x, v[2] * cp + y * sp, y * cp - v[2] * sp];            // right, up, depth - the camera looks down from the north
   };
   // -> [screen x, screen y, perspective factor] or null if behind the viewer
   const proj = v => {
@@ -143,7 +143,7 @@ export function drawSpace(ctx, W, H, S) {
 
   // ---- rings on the reference plane: distance = years ago ----
   const ringList = [...RINGS];
-  for (let k = 10; k <= 100; k += 10) ringList.push([k, `${k} Lichtjahre · ${new Date(t - k * YEAR).getFullYear()}`]);
+  for (let k = 10; k <= 100; k += 10) ringList.push([k, `${k} Lichtjahre (${new Date(t - k * YEAR).getFullYear()})`]);
   for (const [d, text] of ringList) {
     const px = d * sc;
     if (px < 26 || px > 2.5 * Math.max(W, H)) continue;
@@ -213,7 +213,7 @@ export function drawSpace(ctx, W, H, S) {
     if (s.hz) { ctx.strokeStyle = 'rgba(150,225,180,.8)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(p[0], p[1], r + 3.5, 0, 7); ctx.stroke(); }
     ctx.globalAlpha = 1;
     if (on) { ctx.strokeStyle = '#f3c98b'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(p[0], p[1], r + 8, 0, 7); ctx.stroke(); }
-    const year = lit ? ' · ' + new Date(t - s.d * YEAR).getFullYear() : '';
+    const year = lit ? ` (${new Date(t - s.d * YEAR).getFullYear()})` : '';
     labels.push({ x: p[0], y: p[1] - r - 6, text: s.n + year, color: lit ? 'rgba(255,240,215,.95)' : 'rgba(200,205,225,.6)',
       alpha: on ? 1 : Math.max(0.4, sh), font: `${Math.round(Math.min(14, Math.max(10, 11.5 * p[2])))}px "Source Sans 3", system-ui, sans-serif`,
       prio: on ? 100 : (lit ? 20 : 8) + (s.hz ? 3 : 0) - s.mag * 0.8 + p[2] * 6, force: on, soft: true });
@@ -265,7 +265,7 @@ export function drawSpace(ctx, W, H, S) {
     }
     const p = proj(up(d));
     if (!onScreen(p) || d * sc < 4) continue;
-    const w = it.photoOnly ? 0.4 : weight(it), q = (on ? 2 : 0) + 4.3 + 0.9 * w;      // moments are diamonds with a name plate – the more a moment matters, the larger
+    const w = it.photoOnly ? 0.4 : weight(it), q = (on ? 2 : 0) + 4.3 + 0.9 * w;      // moments are diamonds with a name plate - the more a moment matters, the larger
     ctx.beginPath(); ctx.moveTo(p[0], p[1] - q); ctx.lineTo(p[0] + q, p[1]); ctx.lineTo(p[0], p[1] + q); ctx.lineTo(p[0] - q, p[1]); ctx.closePath();
     ctx.fillStyle = it.id === 'death' ? '#1b1630' : color; ctx.fill();
     ctx.strokeStyle = on ? '#fff' : it.id === 'death' ? color : 'rgba(255,255,255,.85)'; ctx.lineWidth = on ? 2.5 : 1.5; ctx.stroke();

@@ -60,7 +60,7 @@ export function createLife(cv, S, { onYear, onItem, label }) {
       ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(x, 18, 1, y - 14);
       bubble(x, label(hover), false);
     }
-    // a chosen time, a chosen moment – or the day a chosen star is watching right now
+    // a chosen time, a chosen moment - or the day a chosen star is watching right now
     const star = S.sel?.kind === 'star' ? S.sel : null;
     const at = star ? S.t - star.d * 365.25 * 864e5 : S.sel?.kind === 'year' ? S.sel._t : S.sel?._t && !S.sel._e ? S.sel._t : null;
     if (at != null && at >= S.birth && at <= S.death) {

@@ -1,4 +1,4 @@
-/* Annas Licht – a quiet, bookish look: one serif for reading, one sans for controls, flat dark surfaces, hairlines, one accent. */
+/* Annas Licht - a quiet, bookish look: one serif for reading, one sans for controls, flat dark surfaces, hairlines, one accent. */
 @font-face { font-family: "EB Garamond"; src: url(fonts/eb-garamond-latin-400-normal.woff2) format("woff2"); font-weight: 400; font-display: swap; }
 @font-face { font-family: "EB Garamond"; src: url(fonts/eb-garamond-latin-400-italic.woff2) format("woff2"); font-weight: 400; font-style: italic; font-display: swap; }
 @font-face { font-family: "EB Garamond"; src: url(fonts/eb-garamond-latin-500-normal.woff2) format("woff2"); font-weight: 500; font-display: swap; }

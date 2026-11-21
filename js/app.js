@@ -1,11 +1,11 @@
 // Interface: canvas interaction, floating panels, moments, accounts.
-import { YEAR, AU, LS, CATS, applyCats, catColor, parseWhen, esc, num, fmtDate, fmtWhen, dur, fmtDist, readDate, readTime, showDate, dateInput, timeInput, weight, WEIGHTS, pickPicture } from './util.js';
-import { photoTime } from './phototime.js';
-import { vec, bodies, updateBodies, sunAltitude } from './astro.js';
-import * as store from './store.js';
-import { drawSpace, cam, fit, clampScale, panBy, atHome } from './space.js';
+import { bodies, sunAltitude, updateBodies, vec } from './astro.js';
 import { createLife } from './life.js';
-import { drawSky, skyCam, lookAt, starAltAz, weather, loadWeather, weatherAt } from './sky.js';
+import { photoTime } from './phototime.js';
+import { drawSky, loadWeather, lookAt, skyCam, starAltAz, weather, weatherAt } from './sky.js';
+import { atHome, cam, clampScale, drawSpace, fit, panBy } from './space.js';
+import * as store from './store.js';
+import { AU, CATS, LS, WEIGHTS, YEAR, applyCats, catColor, dateInput, dur, esc, fmtDate, fmtDist, fmtWhen, num, parseWhen, pickPicture, readDate, readTime, showDate, timeInput, weight } from './util.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -21,7 +21,7 @@ function rebuild() {
   S.birth = parseWhen(p.birth); S.death = parseWhen(p.death);
   const fixed = [
     { id: 'birth', title: 'Geburt', date: p.birth, cat: 'freude', text: 'Ihr erstes Licht.', fixed: true, vis: 'public' },
-    { id: 'death', title: 'Letztes Licht', date: p.death, cat: 'sonst', text: 'Der letzte Augenblick ihres Lebens. Auch dieses Licht reist weiter – hinter ihm folgt alles, was von ihr bleibt.', fixed: true, vis: 'public' },
+    { id: 'death', title: 'Letztes Licht', date: p.death, cat: 'sonst', text: 'Der letzte Augenblick ihres Lebens. Auch dieses Licht reist weiter - hinter ihm folgt alles, was von ihr bleibt.', fixed: true, vis: 'public' },
   ];
   const selId = S.sel?.id;
   S.items = [...fixed, ...store.state.items].map(i => ({
@@ -68,7 +68,7 @@ function frame() {
   updateBodies(S.t);
   const t0 = performance.now();
   hits = (S.view === 'space' ? drawSpace : drawSky)(ctx, W, H, S);
-  if (PROBE) { cost = cost * 0.9 + (performance.now() - t0) * 0.1; document.title = `${cost.toFixed(1)} ms · ${S.stars.length} · ${S.items.length}`; }   // "#messen": how long one picture takes to draw
+  if (PROBE) { cost = cost * 0.9 + (performance.now() - t0) * 0.1; document.title = `${cost.toFixed(1)} ms, ${S.stars.length}, ${S.items.length}`; }   // "#messen": how long one picture takes to draw
   $('#homeBtn').hidden = atHome();
   if (S.view === 'space') { $('#thumb').style.top = scaleY(Math.min(W, H) * 0.4 / cam.scale) + 'px'; if (++ticks % 90 === 1) layoutScale(); }
   requestAnimationFrame(frame);
@@ -164,8 +164,8 @@ function setView(v) {
   $$('#views [data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === v));
   $('#zoom').hidden = v !== 'space'; $('#skybar').hidden = v !== 'sky';
   if (v !== 'space' && J.on) stopJourney();
-  $('#hint').textContent = v === 'space' ? 'Ziehen dreht · Mausrad oder zwei Finger zoomen · Doppelklick fliegt hin · Umschalt-Taste oder zwei Finger verschieben'
-    : 'Ziehen, um dich umzuschauen · Golden leuchten die Sterne, die Anna in diesem Moment sehen – mit dem Jahr, das dort gerade zu sehen ist.';
+  $('#hint').textContent = v === 'space' ? 'Ziehen dreht. Mausrad oder zwei Finger zoomen. Doppelklick fliegt hin. Umschalt-Taste oder zwei Finger verschieben.'
+    : 'Ziehen, um dich umzuschauen. Golden leuchten die Sterne, die Anna in diesem Moment sehen - mit dem Jahr, das dort gerade zu sehen ist.';
   if (v === 'sky' && S.sel?.kind === 'star') lookAt(S.sel, S.skyT ?? Date.now());
   $('#hint').style.opacity = 1; setTimeout(() => { $('#hint').style.opacity = 0; }, 9000);
 }
@@ -177,7 +177,7 @@ function setSkyTime(min) {
   S.skyT = min == null ? null : noon() + min * 6e4;
   const d = new Date(S.skyT ?? Date.now());
   $('#skytime').value = Math.round((d - noon()) / 6e4);
-  $('#skywhen').textContent = d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }) + ' · '
+  $('#skywhen').textContent = d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }) + ', '
     + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr';
   cloudInfo();
 }
@@ -186,7 +186,7 @@ function cloudInfo() {
   $('#clouds').classList.toggle('on', weather.on);
   $('#cloudinfo').textContent = weather.failed ? 'Die Wetterdaten sind gerade nicht erreichbar.'
     : !weather.hours ? '' : !w ? 'Für diese Uhrzeit gibt es keine Wettervorhersage.'
-    : `Bewölkung über Neumünster: ${Math.round(w.all)} %${weather.on ? ' · Wolkenformen sind nachempfunden' : ''} · Wetterdaten: Open-Meteo`;
+    : `Bewölkung über Neumünster: ${Math.round(w.all)} %.${weather.on ? ' Wolkenformen sind nachempfunden.' : ''} Wetterdaten: Open-Meteo`;
 }
 $('#clouds').onclick = () => { weather.on = !weather.on; try { localStorage.setItem('annas-licht-clouds', weather.on ? 'an' : 'aus'); } catch { /* ignore */ } cloudInfo(); };
 // the sky box folds away; on phones it starts folded so it is not in the way
@@ -233,7 +233,7 @@ function shareHash() {
   history.replaceState(null, '', location.pathname + location.search + (part ? '#' + (S.view === 'sky' ? 'himmel&' : '') + part : ''));
 }
 async function shareLink(title) {
-  const url = location.href, text = `Annas Licht – ${title}`;
+  const url = location.href, text = `Annas Licht - ${title}`;
   try { if (navigator.share) await navigator.share({ title: 'Annas Licht', text, url }); else { await navigator.clipboard.writeText(url); return 'Link kopiert'; } } catch { /* cancelled */ }
   return null;
 }
@@ -254,7 +254,7 @@ async function nextPicture() {
     await show.decode?.().catch(() => {});
     show.classList.add('on'); hide.classList.remove('on');
     pics.now = pic.item; pics.el.hidden = false;
-    $('figcaption', pics.el).textContent = `${pic.item.title === 'Fotos' ? '' : pic.item.title + ' · '}${pic.item.date.slice(0, 4)}`;
+    $('figcaption', pics.el).textContent = `${pic.item.title === 'Fotos' ? '' : pic.item.title + ', '}${pic.item.date.slice(0, 4)}`;
     pics.fails = 0;
   } catch {                                              // a photo that cannot be loaded (yet): go straight to the next one
     pics.fails = (pics.fails || 0) + 1;
@@ -284,7 +284,7 @@ const monthYear = t => new Date(t).toLocaleDateString('de-DE', { month: 'long', 
 const life = createLife($('#life canvas'), S, {
   onYear: selectYear,
   onItem: i => { select(i); if (S.view === 'space') flyTo(i); },
-  label: t => `${new Date(t).getFullYear()} · ${ageYears(t)} ${ageYears(t) === 1 ? 'Jahr' : 'Jahre'}`,
+  label: t => `${new Date(t).getFullYear()}, ${ageYears(t)} ${ageYears(t) === 1 ? 'Jahr' : 'Jahre'}`,
 });
 function selectYear(time) {
   if (J.on) stopJourney();
@@ -307,8 +307,8 @@ function renderYear() {
   el.innerHTML = `<button class="x" aria-label="Schließen">×</button><h3>${monthYear(y._t)}</h3>
     <p>${age(y._t, 'ist')} Das Licht dieser Tage ist jetzt <b>${fmtDist(d)}</b> entfernt.</p>
     <p>${close.length ? `Gerade zu sehen von ${close.map(x => star(x[1])).join(', ')}.`
-      : `Kein Stern dieser Karte sieht gerade genau diese Wochen – am nächsten ist ${star(seen[0][1])}.`}</p>
-    ${spans.length || near.length ? `<p class="muted">${[...spans.map(i => `${esc(i.title)} (${spanWhere(i, y._t)})`), ...near.map(i => `<a data-item="${i.id}">${esc(i.title)}</a> (${dur(i._t - y._t)} ${i._t < y._t ? 'davor' : 'danach'})`)].join(' · ')}</p>` : ''}
+      : `Kein Stern dieser Karte sieht gerade genau diese Wochen - am nächsten ist ${star(seen[0][1])}.`}</p>
+    ${spans.length || near.length ? `<p class="muted">${[...spans.map(i => `${esc(i.title)} (${spanWhere(i, y._t)})`), ...near.map(i => `<a data-item="${i.id}">${esc(i.title)}</a> (${dur(i._t - y._t)} ${i._t < y._t ? 'davor' : 'danach'})`)].join('; ')}</p>` : ''}
     ${S.view === 'space' ? '<div class="row"><button id="yfly">Näher heran</button><button id="yhome">Ganzes Leben zeigen</button></div>' : ''}`;
   el.hidden = false;
   $('.x', el).onclick = () => { S.sel = null; el.hidden = true; life.draw(); };
@@ -367,19 +367,19 @@ function drawStation() {
     goHome(); S.sel = null;
     cam.target = clampScale(fit(Math.max((S.t - S.birth) / YEAR, 20) * 1.08, W, H));
     h = `<div class="jbody"><div><p class="meta">In diesem Augenblick</p><h3>Ihr Licht reist weiter</h3>
-      <p>Jeder dieser Momente ist noch unterwegs. Gerade jetzt sehen ${litStars().length} Sterne dieser Karte Anna – jeder an einem anderen Tag ihres Lebens –, und mit jeder Sekunde kommen 299.792 Kilometer hinzu.</p>
-      <p class="muted">Nichts davon geht verloren.</p>${J.failed?.length ? `<p class="fine">${J.failed.length} ${J.failed.length === 1 ? 'Moment konnte' : 'Momente konnten'} nicht gezeigt werden (${esc(J.failed.slice(0, 3).join(' · '))}). Bitte diese Zeile weitergeben.</p>` : ''}</div></div>`;
+      <p>Jeder dieser Momente ist noch unterwegs. Gerade jetzt sehen ${litStars().length} Sterne dieser Karte Anna - jeder an einem anderen Tag ihres Lebens -, und mit jeder Sekunde kommen 299.792 Kilometer hinzu.</p>
+      <p class="muted">Nichts davon geht verloren.</p>${J.failed?.length ? `<p class="fine">${J.failed.length} ${J.failed.length === 1 ? 'Moment konnte' : 'Momente konnten'} nicht gezeigt werden (${esc(J.failed.slice(0, 3).join('; '))}). Bitte diese Zeile weitergeben.</p>` : ''}</div></div>`;
     secs = 0;
   } else {
     S.sel = o; cam.focus = o; cam.touched = performance.now();
     cam.target = clampScale(fit(o._e ? Math.max(8, (Math.min(o._e, S.t) - o._t) / YEAR * 0.8) : 8, W, H));
     const d = (S.t - o._t) / YEAR, by = S.stars.map(s => [Math.abs(s.d - d), s]).sort((a, b) => a[0] - b[0])[0], next = S.stars.find(s => s.d > d);
     const where = o._e ? `Das Licht dieser Zeit füllt den Raum zwischen <b>${fmtDist(Math.max(0, (S.t - o._e) / YEAR))}</b> und <b>${fmtDist(d)}</b> Entfernung.`
-      : by && by[0] < 0.75 ? `Dieses Licht ist jetzt <b>${fmtDist(d)}</b> entfernt – gerade bei <b>${esc(by[1].n)}</b>.`
+      : by && by[0] < 0.75 ? `Dieses Licht ist jetzt <b>${fmtDist(d)}</b> entfernt - gerade bei <b>${esc(by[1].n)}</b>.`
         : `Dieses Licht ist jetzt <b>${fmtDist(d)}</b> entfernt${next ? ` und erreicht in ${dur((next.d - d) * YEAR)} <b>${esc(next.n)}</b>` : ''}.`;
     const ph = o.photos || [];
-    h = `<div class="jbody">${ph.length ? `<figure><img data-photo="${esc(ph[0])}" alt="">${ph.length > 1 ? `<div class="thumbs">${ph.slice(1, 5).map(p => `<img data-photo="${esc(p)}" alt="">`).join('')}</div><small>${ph.length} Fotos – antippen zum Durchblättern</small>` : ''}</figure>` : ''}
-      <div><p class="meta">${J.i + 1} von ${n - 1} · ${range(o)}${inLife(o._t) && o.id !== 'birth' ? ` · ${age(o._t, 'war').replace(/^Anna war /, '').replace(/ alt\.$/, '')}` : ''}</p>
+    h = `<div class="jbody">${ph.length ? `<figure><img data-photo="${esc(ph[0])}" alt="">${ph.length > 1 ? `<div class="thumbs">${ph.slice(1, 5).map(p => `<img data-photo="${esc(p)}" alt="">`).join('')}</div><small>${ph.length} Fotos - antippen zum Durchblättern</small>` : ''}</figure>` : ''}
+      <div><p class="meta">${J.i + 1} von ${n - 1}, ${range(o)}${inLife(o._t) && o.id !== 'birth' ? `, ${age(o._t, 'war').replace(/^Anna war /, '').replace(/ alt\.$/, '')}` : ''}</p>
       <h3>${esc(o.title)}</h3>${o.text ? `<p class="jtext">${esc(o.text)}</p>` : ''}<p>${where}</p></div></div>`;
     secs = Math.min(26, (8 + (o.text || '').length / 28 + ph.length * 3) * (0.7 + 0.1 * weight(o)));      // more time for what matters more
   }
@@ -447,12 +447,12 @@ $('#savePic').onclick = () => {
   c.fillStyle = getComputedStyle(document.body).backgroundColor || '#070912'; c.fillRect(0, 0, out.width, out.height);
   c.drawImage(cv, 0, 0);
   c.font = `${Math.round(15 * k)}px EB Garamond, Georgia, serif`; c.textAlign = 'right'; c.fillStyle = 'rgba(233,229,220,.75)';
-  c.fillText(`Annas Licht · ${fmtDate(S.t)}`, out.width - 18 * k, out.height - 16 * k);
+  c.fillText(`Annas Licht, ${fmtDate(S.t)}`, out.width - 18 * k, out.height - 16 * k);
   out.toBlob(blob => Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `annas-licht-${new Date().toISOString().slice(0, 10)}.png` }).click());
 };
 const lock = i => (i.vis === 'private' ? '<span class="tag">nur Familie &amp; Freunde</span>' : '');
 // photos whose day nobody remembers only claim their month or year
-const range = i => (i._e ? `${fmtWhen(i.date)} – ${i.end ? fmtWhen(i.end) : 'zuletzt'}` : i.approx ? (i.date.endsWith('-07-01') ? `im Jahr ${i.date.slice(0, 4)}` : `im ${monthYear(parseWhen(i.date))}`) : fmtWhen(i.date));
+const range = i => (i._e ? `${fmtWhen(i.date)} - ${i.end ? fmtWhen(i.end) : 'zuletzt'}` : i.approx ? (i.date.endsWith('-07-01') ? `im Jahr ${i.date.slice(0, 4)}` : `im ${monthYear(parseWhen(i.date))}`) : fmtWhen(i.date));
 
 // ---------- detail ----------
 function renderDetail() {
@@ -477,8 +477,8 @@ function renderDetail() {
     } else {
       h += `<p>Das Licht dieses Augenblicks ist jetzt <b>${fmtDist(d)}</b> von der Erde entfernt.</p>`;
       const past = S.stars.filter(s => s.d <= d).pop(), next = S.stars.find(s => s.d > d);
-      if (past) h += `<p>Zuletzt erreichte es <b>${esc(past.n)}</b> – vor ${dur((d - past.d) * YEAR)}.</p>`;
-      if (next) h += `<p>Als Nächstes kommt es bei <b>${esc(next.n)}</b> an – in ${dur((next.d - d) * YEAR)}.</p>`;
+      if (past) h += `<p>Zuletzt erreichte es <b>${esc(past.n)}</b> - vor ${dur((d - past.d) * YEAR)}.</p>`;
+      if (next) h += `<p>Als Nächstes kommt es bei <b>${esc(next.n)}</b> an - in ${dur((next.d - d) * YEAR)}.</p>`;
     }
     if (d > 0 && S.view === 'space') h += '<p><button id="fly">Näher ansehen</button></p>';
     if (o.by) h += `<p class="muted">Hinzugefügt von ${esc(o.by)}</p>`;
@@ -487,22 +487,22 @@ function renderDetail() {
     if (o.photos?.length) h += `<div class="photos big" style="margin-top:14px">${o.photos.map(p => `<figure><img data-photo="${esc(p)}" alt=""></figure>`).join('')}</div>`;
   } else {                                                            // a star, a planet, a probe
     const d = o.d, seen = t - d * YEAR, star = o.kind === 'star';
-    h += `<p class="muted">${star && o.con ? `Sternbild ${esc(o.con)} · ` : ''}${fmtDist(d)} entfernt</p>`;
-    if (o.hz) h += `<p>Um diesen Stern kreist ${o.hz.length > 1 ? `mehr als ein Planet` : 'ein Planet'} in der lebensfreundlichen Zone (${esc(o.hz.join(', '))})${o.pl > o.hz.length ? ` – insgesamt kennt man dort ${o.pl} Planeten` : ''}.</p>`;
+    h += `<p class="muted">${star && o.con ? `Sternbild ${esc(o.con)}, ` : ''}${fmtDist(d)} entfernt</p>`;
+    if (o.hz) h += `<p>Um diesen Stern kreist ${o.hz.length > 1 ? `mehr als ein Planet` : 'ein Planet'} in der lebensfreundlichen Zone (${esc(o.hz.join(', '))})${o.pl > o.hz.length ? ` - insgesamt kennt man dort ${o.pl} Planeten` : ''}.</p>`;
     else if (o.pl) h += `<p>Um diesen Stern ${o.pl === 1 ? 'kreist ein bekannter Planet' : `kreisen ${o.pl} bekannte Planeten`}.</p>`;
     if (seen < S.birth) {
-      h += `<p>Annas erstes Licht ist noch auf dem Weg hierher. Es kommt in <b>${dur(S.birth - seen)}</b> an – am ${fmtDate(S.birth + d * YEAR)}.</p>`;
+      h += `<p>Annas erstes Licht ist noch auf dem Weg hierher. Es kommt in <b>${dur(S.birth - seen)}</b> an - am ${fmtDate(S.birth + d * YEAR)}.</p>`;
     } else if (seen > S.death) {
-      h += `<p>Annas Licht ist hier schon vorbeigezogen – ihr letztes Licht kam am ${fmtDate(S.death + d * YEAR)} an. Es reist weiter hinaus zu den Sternen.</p>`;
+      h += `<p>Annas Licht ist hier schon vorbeigezogen - ihr letztes Licht kam am ${fmtDate(S.death + d * YEAR)} an. Es reist weiter hinaus zu den Sternen.</p>`;
     } else {
       h += `<p>Von hier aus gesehen ist auf der Erde jetzt der <b>${fmtDate(seen)}</b>. ${age(seen)}</p>`;
       const spans = S.items.filter(i => i._e && i._t <= seen && seen <= i._e);
       for (const i of spans) h += `<p>Dort läuft gerade <b>${esc(i.title)}</b>: ${spanWhere(i, seen)}.</p>`;
       const soon = S.items.find(i => i._e && i._t > seen);
-      if (soon) h += `<p>Demnächst beginnt dort <b>${esc(soon.title)}</b> – in ${dur(soon._t - seen)}.</p>`;
+      if (soon) h += `<p>Demnächst beginnt dort <b>${esc(soon.title)}</b> - in ${dur(soon._t - seen)}.</p>`;
       const ev = S.items.filter(i => !i._e), prev = ev.filter(i => i._t <= seen).pop(), next = ev.find(i => i._t > seen);
-      if (prev) h += `<p>Zuletzt hier angekommen: ${esc(prev.title)} – vor ${dur(seen - prev._t)}.</p>`;
-      if (next) h += `<p>Als Nächstes zu sehen: <b>${esc(next.title)}</b> – in ${dur(next._t - seen)}.</p>`;
+      if (prev) h += `<p>Zuletzt hier angekommen: ${esc(prev.title)} - vor ${dur(seen - prev._t)}.</p>`;
+      if (next) h += `<p>Als Nächstes zu sehen: <b>${esc(next.title)}</b> - in ${dur(next._t - seen)}.</p>`;
       if (star) h += `<p class="muted">Und das Licht, das heute Nacht von ${esc(o.n)} bei uns ankommt, ist an genau diesem Tag dort aufgebrochen.</p>`;
     }
     if (star && S.view === 'sky') {
@@ -538,7 +538,7 @@ function renderSoon() {
   // tonight: the three highest naked-eye stars that are watching her right now
   const night = S.skyT ?? Date.now();
   const up = litStars().filter(s => s.mag <= 4.5).map(s => [starAltAz(s, night)[0], s]).filter(x => x[0] > 15).sort((a, b) => b[0] - a[0]).slice(0, 3);
-  const tonight = up.map(([, s]) => `<li data-sky="${esc(s.n)}"><span class="dot lit"></span><div>${esc(s.n)}<small>sieht gerade den ${fmtDate(t - s.d * YEAR)} – ${age(t - s.d * YEAR).replace(/\.$/, '')}</small></div></li>`).join('');
+  const tonight = up.map(([, s]) => `<li data-sky="${esc(s.n)}"><span class="dot lit"></span><div>${esc(s.n)}<small>sieht gerade den ${fmtDate(t - s.d * YEAR)} - ${age(t - s.d * YEAR).replace(/\.$/, '')}</small></div></li>`).join('');
   // anniversaries within the next 30 days
   const today = new Date(); today.setHours(12, 0, 0, 0);
   const days = S.items.filter(i => !i._e && !i.photoOnly && i._t < today.getTime()).map(i => {
@@ -547,14 +547,14 @@ function renderSoon() {
     return { i, inDays: Math.round((next - today) / 864e5), years: next.getFullYear() - d.getFullYear() };
   }).filter(a => a.inDays <= 30 && a.years >= 1).sort((a, b) => a.inDays - b.inDays);
   const annRow = a => `<li data-id="${a.i.id}"><span class="swatch" style="background:${catColor(a.i.cat)}"></span><div><span class="when">${a.inDays === 0 ? 'Heute' : a.inDays === 1 ? 'Morgen' : `In ${a.inDays} Tagen`}</span><br>
-    ${a.i.id === 'birth' ? `Annas ${a.years}. Geburtstag` : `${esc(a.i.title)} – ${a.inDays === 0 ? 'heute' : 'dann'} vor ${a.years} ${a.years === 1 ? 'Jahr' : 'Jahren'}`}</div></li>`;
+    ${a.i.id === 'birth' ? `Annas ${a.years}. Geburtstag` : `${esc(a.i.title)} - ${a.inDays === 0 ? 'heute' : 'dann'} vor ${a.years} ${a.years === 1 ? 'Jahr' : 'Jahren'}`}</div></li>`;
   $('#dock [data-panel=soon]').classList.toggle('dot', days.some(a => a.inDays === 0) || next.some(a => a.at - t < 864e5));
   el.innerHTML = `${tonight ? `<h3 style="margin-top:0">Heute Nacht am Himmel</h3><ul class="list">${tonight}</ul>` : ''}
     ${days.length ? `<h3>Jahrestage</h3><ul class="list">${days.map(annRow).join('')}</ul>` : ''}
     <h3>Wo ihr Licht demnächst ankommt</h3><ul class="list">${next.map(a => row(a, 'in')).join('')}</ul>
     <h3>Gerade angekommen</h3><ul class="list">${last.map(a => row(a, 'vor')).join('') || '<li class="muted">Noch nichts.</li>'}</ul>
     <p><button id="ics">Als Kalender speichern</button></p>
-    <p class="fine">Lädt die Ankünfte der nächsten zwei Jahre als Kalender-Datei herunter – zum Öffnen im Handy- oder Computer-Kalender.</p>`;
+    <p class="fine">Lädt die Ankünfte der nächsten zwei Jahre als Kalender-Datei herunter - zum Öffnen im Handy- oder Computer-Kalender.</p>`;
   $$('li[data-star]', el).forEach(li => li.onclick = () => select(S.stars.find(s => s.n === li.dataset.star)));
   $$('li[data-sky]', el).forEach(li => li.onclick = () => { setView('sky'); select(S.stars.find(s => s.n === li.dataset.sky)); });
   $$('li[data-id]', el).forEach(li => li.onclick = () => select(S.items.find(i => i.id === li.dataset.id)));
@@ -587,11 +587,11 @@ function renderMoments() {
   const sorter = S.items.length > 3 ? `<div class="tabs" style="margin-top:4px"><span class="muted" style="font:13px var(--sans);align-self:center">Reihenfolge:</span>
     <button data-sort="time" class="${momentsSort === 'time' ? 'on' : ''}">wann es geschah</button><button data-sort="added" class="${momentsSort === 'added' ? 'on' : ''}">zuletzt hinzugefügt</button></div>
     <label style="margin:-4px 0 10px">Thema<select id="catFilter"><option value="">Alle Themen (${S.items.length})</option>${Object.entries(CATS).map(([k, [n]]) => `<option value="${k}" ${k === momentsCat ? 'selected' : ''}>${esc(n)} (${S.items.filter(i => themeOf(i) === k).length})</option>`).join('')}</select></label>
-    <p style="margin:-6px 0 8px"><button id="sortDir" style="padding:4px 10px;font-size:13px" title="Reihenfolge umkehren">${dirText} – umkehren</button></p>` : '';
+    <p style="margin:-6px 0 8px"><button id="sortDir" style="padding:4px 10px;font-size:13px" title="Reihenfolge umkehren">${dirText} - umkehren</button></p>` : '';
   const tools = `${withPhotos.length ? `<div class="tabs"><button data-tab="list" class="${momentsTab === 'list' ? 'on' : ''}">Alle Momente</button><button data-tab="wall" class="${momentsTab === 'wall' ? 'on' : ''}">Fotos (${withPhotos.reduce((n, i) => n + i.photos.length, 0)})</button></div>` : ''}
-    ${S.items.length > 6 && momentsTab === 'list' ? `<input type="text" id="find" placeholder="Suchen – z. B. Hochzeit oder 1998" value="${esc(momentsFind)}" style="margin-bottom:8px">` : ''}`;
+    ${S.items.length > 6 && momentsTab === 'list' ? `<input type="text" id="find" placeholder="Suchen - z. B. Hochzeit oder 1998" value="${esc(momentsFind)}" style="margin-bottom:8px">` : ''}`;
   if (momentsTab === 'wall' && withPhotos.length) {
-    el.innerHTML = tools + `<div class="photos wall">${withPhotos.flatMap(i => i.photos.map(p => `<figure data-id="${i.id}"><img data-photo="${esc(p)}" alt="" loading="lazy"><figcaption>${i.date.slice(0, 4)} · ${esc(i.title)}</figcaption></figure>`)).join('')}</div>`;
+    el.innerHTML = tools + `<div class="photos wall">${withPhotos.flatMap(i => i.photos.map(p => `<figure data-id="${i.id}"><img data-photo="${esc(p)}" alt="" loading="lazy"><figcaption>${i.date.slice(0, 4)}, ${esc(i.title)}</figcaption></figure>`)).join('')}</div>`;
     hydrate(el);
     $$('figure[data-id]', el).forEach(f => { $('img', f).onclick = () => select(S.items.find(i => i.id === f.dataset.id)); });
     $$('[data-tab]', el).forEach(b => b.onclick = () => { momentsTab = b.dataset.tab; renderMoments(); });
@@ -599,9 +599,9 @@ function renderMoments() {
   }
   momentsTab = 'list';
   el.innerHTML = (can ? '<p class="row"><button class="primary" id="add">Einen Moment hinzufügen</button><button id="addPhotos">Nur Fotos hinzufügen</button></p>'
-    : '<p class="muted">Wer Anna kannte, kann hier eigene Erinnerungen hinzufügen – dafür bitte unten auf „Anmelden“ tippen.</p>')
+    : '<p class="muted">Wer Anna kannte, kann hier eigene Erinnerungen hinzufügen - dafür bitte unten auf „Anmelden“ tippen.</p>')
     + tools + sorter + (shown.length ? '' : '<p class="muted">Zu dieser Auswahl gibt es keine Momente.</p>') + `<ul class="list">${shown.map(i => `<li data-id="${i.id}"><span class="swatch ${i._e ? 'span' : ''}" style="background:${catColor(i.cat)}"></span>
-      <div style="flex:1">${esc(i.title)} ${lock(i)}<small>${range(i)}${i.photos?.length ? ` · ${i.photos.length} Foto${i.photos.length > 1 ? 's' : ''}` : ''}</small></div>
+      <div style="flex:1">${esc(i.title)} ${lock(i)}<small>${range(i)}${i.photos?.length ? `, ${i.photos.length} Foto${i.photos.length > 1 ? 's' : ''}` : ''}</small></div>
       ${store.canEdit(i) ? `<button data-edit="${i.id}" style="padding:4px 10px;font-size:13px">Bearbeiten</button>` : ''}</li>`).join('')}</ul>`;
   $$('li[data-id]', el).forEach(li => li.onclick = () => select(S.items.find(i => i.id === li.dataset.id)));
   $$('[data-tab]', el).forEach(b => b.onclick = () => { momentsTab = b.dataset.tab; renderMoments(); });
@@ -643,7 +643,7 @@ function editItem(item) {
       <input type="range" name="imp" min="1" max="5" step="1" value="${i.imp || 1}" style="accent-color:var(--gold)">
       <span style="display:flex;justify-content:space-between;font-size:12.5px"><span>eine Kleinigkeit</span><span>ein Lebensereignis</span></span></label>
     <label>Ein paar Worte dazu<textarea name="text" maxlength="4000" placeholder="Was möchtest du erzählen?">${esc(i.text)}</textarea></label>
-    <label>Fotos hinzufügen – gern mehrere, auch nach und nach<input type="file" name="photos" accept="image/*" multiple></label>
+    <label>Fotos hinzufügen - gern mehrere, auch nach und nach<input type="file" name="photos" accept="image/*" multiple></label>
     <p class="muted" id="photoHint" style="margin:-8px 0 0" hidden></p>
     <div class="photos" id="thumbs"></div>
     <div class="choice">
@@ -657,14 +657,14 @@ function editItem(item) {
   const form = $('form', el), status = $('.status', el);
   const thumbs = () => {
     $('#thumbs').innerHTML = keep.map(p => `<figure><img data-photo="${esc(p)}" alt=""><button type="button" data-rm="${esc(p)}" aria-label="Foto entfernen">×</button></figure>`).join('')
-      + fresh.map((f, n) => `<figure class="new"><img src="${f.url}" alt="" title="Neu – wird beim Speichern hochgeladen"><button type="button" data-rmnew="${n}" aria-label="Foto doch nicht hinzufügen">×</button></figure>`).join('');
+      + fresh.map((f, n) => `<figure class="new"><img src="${f.url}" alt="" title="Neu - wird beim Speichern hochgeladen"><button type="button" data-rmnew="${n}" aria-label="Foto doch nicht hinzufügen">×</button></figure>`).join('');
     hydrate($('#thumbs'));
     $$('[data-rm]', el).forEach(b => b.onclick = () => { removed.push(b.dataset.rm); keep = keep.filter(p => p !== b.dataset.rm); thumbs(); });
     $$('[data-rmnew]', el).forEach(b => b.onclick = () => { URL.revokeObjectURL(fresh.splice(+b.dataset.rmnew, 1)[0].url); thumbs(); });
   };
   const toggle = () => $$('[data-end]', el).forEach(n => { n.hidden = !form.period.value; $('[data-l=from]', el).textContent = form.period.value ? 'Von wann?' : 'Wann?'; });
   $$('[name=period]', el).forEach(r => r.onchange = toggle);
-  const impWord = () => { $('#impWord').textContent = '– ' + WEIGHTS[form.imp.value - 1]; };
+  const impWord = () => { $('#impWord').textContent = '- ' + WEIGHTS[form.imp.value - 1]; };
   form.imp.oninput = impWord; impWord();
   // a chosen photo often knows when it was taken: from the camera's record or from its file name
   form.photos.onchange = async () => {
@@ -691,7 +691,7 @@ function editItem(item) {
   $('#cancel').onclick = renderMoments;
   if (item) $('#del').onclick = async () => {
     if (!confirm(`„${item.title}“ wirklich löschen?`)) return;
-    busy(true); status.textContent = 'Wird gelöscht …';
+    busy(true); status.textContent = 'Wird gelöscht ...';
     try { await store.deleteItem(item); S.sel = null; rebuild(); } catch (e) { fail(e); }
   };
   form.onsubmit = async e => {
@@ -702,7 +702,7 @@ function editItem(item) {
     if (!date || end === null) return bad('Bitte das Datum als Tag.Monat.Jahr eingeben, zum Beispiel 23.05.1998.');
     if (time === null || endtime === null) return bad('Bitte die Uhrzeit mit 24 Stunden eingeben, zum Beispiel 14:30.');
     if (end && end < date) return bad('Das Ende liegt vor dem Anfang.');
-    busy(true); status.className = 'status'; status.textContent = 'Wird gespeichert … das dauert einen Augenblick.';
+    busy(true); status.className = 'status'; status.textContent = 'Wird gespeichert ... das dauert einen Augenblick.';
     try {
       const photos = [];
       for (const { file } of fresh) photos.push(await prepPhoto(file));
@@ -730,8 +730,8 @@ function addPhotos() {
   openPanel('moments');
   const el = $('#p-moments .body'), rows = [];          // { file, url, date (German text), time }
   el.innerHTML = `<form>
-    <p>Fotos brauchen keine Geschichte. Jedes findet seinen Platz über das Datum – das wird, wenn möglich, aus dem Foto gelesen.</p>
-    <label>Fotos auswählen – gern viele auf einmal<input type="file" name="photos" accept="image/*" multiple></label>
+    <p>Fotos brauchen keine Geschichte. Jedes findet seinen Platz über das Datum - das wird, wenn möglich, aus dem Foto gelesen.</p>
+    <label>Fotos auswählen - gern viele auf einmal<input type="file" name="photos" accept="image/*" multiple></label>
     <div id="rows"></div>
     <div class="choice">
       <label><input type="radio" name="vis" value="private" checked><span>Nur für Familie &amp; Freunde<small>verschlüsselt, nur mit Anmeldung sichtbar</small></span></label>
@@ -763,13 +763,13 @@ function addPhotos() {
     const days = new Map();                               // photos of the same day belong together
     for (const r of rows) {
       const d = looseDate(r.date);
-      if (!d) return bad('Bitte bei jedem Foto ein Datum eintragen – notfalls nur das Jahr, zum Beispiel 1998.');
+      if (!d) return bad('Bitte bei jedem Foto ein Datum eintragen - notfalls nur das Jahr, zum Beispiel 1998.');
       if (parseWhen(d.date) < S.birth - 864e5 || parseWhen(d.date) > Date.now()) return bad(`Das Datum ${r.date} liegt außerhalb der Zeit, die diese Seite zeigt.`);
       if (!days.has(d.date)) days.set(d.date, { ...d, time: r.time, files: [] });
       days.get(d.date).files.push(r.file);
     }
     $$('button', form).forEach(b => { b.disabled = true; });
-    status.className = 'status'; status.textContent = 'Wird gespeichert … bei vielen Fotos dauert das einen Moment.';
+    status.className = 'status'; status.textContent = 'Wird gespeichert ... bei vielen Fotos dauert das einen Moment.';
     try {
       const vis = form.vis.value, entries = [];
       let joined = 0;
@@ -807,7 +807,7 @@ function renderLogin() {
       <label>Passwort (am besten ein ganzer Satz)<input type="password" name="pass" required minlength="10" autocomplete="new-password"></label>
       <label>GitHub-Zugriffstoken (nur „Contents: Read and write“ für dieses Repository)<input type="password" name="token" required autocomplete="off"></label>
       <p class="status"></p><button class="primary">Einrichten</button></form>`;
-    $('form', el).onsubmit = e => { e.preventDefault(); const f = e.target; act($('.status', el), 'Wird eingerichtet …', () => store.setup(f.name.value, f.pass.value, f.token.value, true)); };
+    $('form', el).onsubmit = e => { e.preventDefault(); const f = e.target; act($('.status', el), 'Wird eingerichtet ...', () => store.setup(f.name.value, f.pass.value, f.token.value, true)); };
     return;
   }
   if (!s) {
@@ -817,7 +817,7 @@ function renderLogin() {
       <label class="row" style="display:flex;color:var(--text)"><input type="checkbox" name="keep" checked> Auf diesem Gerät angemeldet bleiben</label>
       <p class="status"></p><button class="primary">Anmelden</button></form>
       <p class="fine">Du hast keinen Zugang? Wende dich bitte an die Familie.</p>`;
-    $('form', el).onsubmit = e => { e.preventDefault(); const f = e.target; act($('.status', el), 'Einen Moment …', () => store.login(f.name.value, f.pass.value, f.keep.checked)); };
+    $('form', el).onsubmit = e => { e.preventDefault(); const f = e.target; act($('.status', el), 'Einen Moment ...', () => store.login(f.name.value, f.pass.value, f.keep.checked)); };
     return;
   }
   let h = `<p>Angemeldet als <b>${esc(s.name)}</b> <span class="tag">${ROLES[s.role]}</span></p><p><button id="out">Abmelden</button></p>`;
@@ -828,7 +828,7 @@ function renderLogin() {
       <form id="newUser"><h3>Neuen Zugang anlegen</h3>
         <label>Name<input type="text" name="name" required autocomplete="off"></label>
         <label>Passwort<input type="text" name="pass" required minlength="8" autocomplete="off"></label>
-        <label>Darf …<select name="role"><option value="editor">Erinnerungen ansehen und hinzufügen</option><option value="viewer">Erinnerungen nur ansehen</option><option value="admin">alles verwalten</option></select></label>
+        <label>Darf ...<select name="role"><option value="editor">Erinnerungen ansehen und hinzufügen</option><option value="viewer">Erinnerungen nur ansehen</option><option value="admin">alles verwalten</option></select></label>
         <p class="status"></p><button class="primary">Zugang anlegen</button></form>
       <form id="cats"><h3>Themen der Momente</h3>
         <p class="muted" style="margin-top:0">Name und Farbe ändern, die Reihenfolge mit den Pfeilen festlegen, neue Themen anlegen oder nicht gebrauchte entfernen. In dieser Reihenfolge erscheinen die Themen auch in der Auswahl beim Anlegen eines Moments.</p>
@@ -836,7 +836,7 @@ function renderLogin() {
         <p class="status"></p>
         <div class="row"><button type="button" id="catAdd">Thema hinzufügen</button><button class="primary">Themen speichern</button></div></form>
       <form id="person"><h3>Grunddaten</h3>
-        ${p.placeholder ? '<p class="status err">Hier stehen noch Platzhalter – bitte die echten Daten eintragen.</p>' : ''}
+        ${p.placeholder ? '<p class="status err">Hier stehen noch Platzhalter - bitte die echten Daten eintragen.</p>' : ''}
         <div class="two"><label>Geboren am${dateInput('bd', bd, true)}</label><label>Uhrzeit${timeInput('bt', bt)}</label></div>
         <div class="two"><label>Letztes Licht am${dateInput('dd', dd, true)}</label><label>Uhrzeit${timeInput('dt', dt)}</label></div>
         <p class="status"></p><button class="primary">Grunddaten speichern</button></form>
@@ -845,8 +845,8 @@ function renderLogin() {
   el.innerHTML = h;
   $('#out').onclick = async () => { await store.logout(); urls.clear(); rebuild(); };
   if (s.role !== 'admin') return;
-  $$('[data-rm]', el).forEach(b => b.onclick = () => confirm('Diesen Zugang wirklich entfernen?') && act($('#newUser .status'), 'Wird entfernt …', () => store.removeUser(b.dataset.rm)));
-  $('#newUser').onsubmit = e => { e.preventDefault(); const f = e.target; act($('.status', f), 'Wird angelegt …', () => store.addUser(f.name.value, f.pass.value, f.role.value)); };
+  $$('[data-rm]', el).forEach(b => b.onclick = () => confirm('Diesen Zugang wirklich entfernen?') && act($('#newUser .status'), 'Wird entfernt ...', () => store.removeUser(b.dataset.rm)));
+  $('#newUser').onsubmit = e => { e.preventDefault(); const f = e.target; act($('.status', f), 'Wird angelegt ...', () => store.addUser(f.name.value, f.pass.value, f.role.value)); };
   // themes: a working copy that is only written when "Themen speichern" is pressed
   const cats = Object.entries(CATS).map(([id, [name, color]]) => ({ id, name, color }));
   const used = id => S.items.filter(i => (CATS[i.cat] ? i.cat : 'sonst') === id).length;
@@ -868,13 +868,13 @@ function renderLogin() {
   $('#catAdd').onclick = () => { cats.push({ id: 't' + Math.random().toString(36).slice(2, 8), name: '', color: '#b9c7a0' }); drawCats(); $$('#catrows input[type=text]', el).pop().focus(); };
   $('#cats').onsubmit = e => {
     e.preventDefault();
-    act($('#cats .status'), 'Wird gespeichert …', () => store.setCats(cats.map(c => ({ id: c.id, name: c.name.trim(), color: c.color }))));
+    act($('#cats .status'), 'Wird gespeichert ...', () => store.setCats(cats.map(c => ({ id: c.id, name: c.name.trim(), color: c.color }))));
   };
   $('#person').onsubmit = e => {
     e.preventDefault(); const f = e.target, j = (d, t) => (t ? `${d}T${t}` : d), st2 = $('.status', f);
     const b = readDate(f.bd.value), d = readDate(f.dd.value), bt2 = readTime(f.bt.value), dt2 = readTime(f.dt.value);
     if (!b || !d || bt2 === null || dt2 === null || d < b) { st2.className = 'status err'; st2.textContent = 'Bitte Datum als 23.05.1998 und Uhrzeit als 14:30 eingeben.'; return; }
-    act(st2, 'Wird gespeichert …', () => store.setPerson({ name: 'Anna', birth: j(b, bt2), death: j(d, dt2) }));
+    act(st2, 'Wird gespeichert ...', () => store.setPerson({ name: 'Anna', birth: j(b, bt2), death: j(d, dt2) }));
   };
 }
 
@@ -886,7 +886,7 @@ function renderLead() {
   if (dOut <= 0) { $('#lead').textContent = 'Annas Licht hat seine Reise noch nicht begonnen.'; return; }
   const all = Math.round(0.00288 * 4 / 3 * Math.PI * (dOut ** 3 - Math.max(0, (S.t - S.death) / YEAR) ** 3) / 100) * 100;
   $('#lead').innerHTML = `Das Licht ihres Lebens erfüllt in diesem Augenblick eine Kugel mit einem Radius von <b>${num(dOut, 7)}</b> Lichtjahren.`
-    + (all >= 100 ? `<span class="more"> Rund <b>${all.toLocaleString('de-DE')}</b> Sterne sehen sie gerade – ${lit} davon zeigt diese Karte, jeden an einem anderen Tag ihres Lebens.</span>` : '');
+    + (all >= 100 ? `<span class="more"> Rund <b>${all.toLocaleString('de-DE')}</b> Sterne sehen sie gerade - ${lit} davon zeigt diese Karte, jeden an einem anderen Tag ihres Lebens.</span>` : '');
 }
 function renderAll() { fillFrame(); life.draw(); renderDetail(); renderSoon(); renderMoments(); renderLogin(); renderLead(); }
 

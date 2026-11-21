@@ -1,6 +1,6 @@
 // Checks the photo-date recognition.  Run: node tools/test_phototime.mjs
 import assert from 'node:assert';
-import { timeFromName, timeFromExif } from '../js/phototime.js';
+import { timeFromExif, timeFromName } from '../js/phototime.js';
 
 const from = new Date(1970, 3, 16).getTime(), to = new Date(2026, 7, 27, 3).getTime();
 const t = n => { const r = timeFromName(n, from, to); return r ? (r.time ? `${r.date} ${r.time}` : r.date) : null; };
@@ -73,4 +73,4 @@ assert.deepEqual(timeFromExif(jpeg('2015:08:12 16:45:10'), from, to), { date: '2
 assert.deepEqual(timeFromExif(jpeg('2015:08:12 16:45:10', false), from, to), { date: '2015-08-12', time: '16:45' });
 assert.equal(timeFromExif(jpeg('0000:00:00 00:00:00'), from, to), null);
 assert.equal(timeFromExif(Uint8Array.from([1, 2, 3, 4, 5, 6]), from, to), null);
-console.log('ok –', Object.keys(cases).length, 'file names');
+console.log('ok -', Object.keys(cases).length, 'file names');
