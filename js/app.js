@@ -13,6 +13,9 @@ const S = { calm: matchMedia('(prefers-reduced-motion: reduce)').matches, t: Dat
 const cv = $('#view'), ctx = cv.getContext('2d');
 let W = 0, H = 0, hits = [], ticks = 0, cost = 0;
 const PROBE = location.hash.includes('messen'), LOCAL = /^(localhost|127\.)/.test(location.hostname);
+// the way back: every jump along a link remembers where it came from (a star, a moment, a chosen time, the "Heute" list).
+// Opening anything any other way starts afresh.
+let trail = [], following = false;
 
 // ---------- model ----------
 function rebuild() {
@@ -200,11 +203,12 @@ $('#skynow').onclick = () => setSkyTime(null);
 // ---------- panels ----------
 const panel = id => $('#p-' + id);
 function openPanel(id) {
+  if (id !== 'detail' && !following) trail = [];
   const p = panel(id), small = innerWidth <= 760;
   for (const other of $$('.panel')) if (other !== p && (small || (p.classList.contains('left') && other.classList.contains('left')))) other.hidden = true;
   p.hidden = false; syncDock();
 }
-const closePanel = id => { panel(id).hidden = true; syncDock(); };
+const closePanel = id => { if (id === 'detail' && !following) trail = []; panel(id).hidden = true; syncDock(); };
 const syncDock = () => { $$('#dock [data-panel]').forEach(b => b.classList.toggle('on', !panel(b.dataset.panel).hidden)); document.body.classList.toggle('leftopen', $$('.panel.left').some(p => !p.hidden)); };
 $$('#dock [data-panel]').forEach(b => b.onclick = () => (panel(b.dataset.panel).hidden ? openPanel(b.dataset.panel) : closePanel(b.dataset.panel)));
 for (const p of $$('.panel')) {
@@ -224,7 +228,7 @@ function deselect() {
   S.sel = null; $('#yearcard').hidden = true; closePanel('detail'); renderDetail(); shareHash();
 }
 // selecting a moment in the 3D view also makes it the point the view turns around
-function select(o) { if (J.on) stopJourney(); $('#yearcard').hidden = true; S.sel = o; shareHash();
+function select(o) { if (!following) trail = []; if (J.on) stopJourney(); $('#yearcard').hidden = true; S.sel = o; shareHash();
   if (S.view === 'space' && o?._t && o.kind !== 'year') { cam.focus = o; cam.touched = performance.now(); } if (S.view === 'sky' && o?.kind === 'star') lookAt(o, S.skyT ?? Date.now()); renderDetail(); openPanel('detail'); }
 
 // the address bar always names what is selected, so a link to a star or a moment can be passed on
@@ -462,11 +466,29 @@ function bindLinks(root) {
     const open = e => {
       e.preventDefault(); e.stopPropagation();
       const o = a.dataset.item ? S.items.find(i => i.id === a.dataset.item) : S.stars.find(s => s.n === a.dataset.star);
-      if (o) select(o);
+      if (o) follow(o, a.closest('#p-soon') ? { panel: 'soon', title: '„Heute bei Anna“' } : S.sel);
     };
     a.onclick = open; a.onkeydown = e => { if (e.key === 'Enter') open(e); };
   }
 }
+const along = fn => { following = true; try { fn(); } finally { following = false; } };
+function follow(o, from) {
+  if (from && from !== o) trail = [...trail.slice(-40), from];
+  along(() => select(o));
+}
+function goBack() {
+  const from = trail.pop();
+  if (!from) return;
+  along(() => {
+    if (from.panel) { S.sel = null; shareHash(); closePanel('detail'); renderDetail(); openPanel(from.panel); }
+    else if (from.kind === 'year') selectYear(from._t);
+    else select(from.id ? S.items.find(i => i.id === from.id) || from : from);     // a moment may have been edited since
+  });
+}
+const backButton = () => {
+  const from = trail.at(-1);
+  return from ? `<p style="margin-top:0"><button id="back" style="padding:4px 10px;font-size:13px">Zurück zu ${esc(from.n || from.name || from.title)}</button></p>` : '';
+};
 
 // ---------- detail ----------
 function renderDetail() {
@@ -530,7 +552,8 @@ function renderDetail() {
       : '<p class="muted">Zu lichtschwach für das bloße Auge.</p>';
     h += '<p><button id="share">Link teilen</button></p>';
   }
-  el.innerHTML = h; hydrate(el); bindLinks(el);
+  el.innerHTML = backButton() + h; hydrate(el); bindLinks(el);
+  if ($('#back', el)) $('#back', el).onclick = goBack;
   if ($('#toSky')) $('#toSky').onclick = () => { setView(S.view === 'sky' ? 'space' : 'sky'); renderDetail(); };
   if ($('#editSel')) $('#editSel').onclick = () => editItem(o);
   if ($('#editBase')) $('#editBase').onclick = () => { openPanel('login'); $('#person')?.scrollIntoView(); };
