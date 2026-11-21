@@ -1,5 +1,5 @@
 // Interface: canvas interaction, floating panels, moments, accounts.
-import { YEAR, AU, LS, CATS, applyCats, catColor, parseWhen, esc, num, fmtDate, fmtWhen, dur, fmtDist, readDate, readTime, showDate, dateInput, timeInput, weight, WEIGHTS } from './util.js';
+import { YEAR, AU, LS, CATS, applyCats, catColor, parseWhen, esc, num, fmtDate, fmtWhen, dur, fmtDist, readDate, readTime, showDate, dateInput, timeInput, weight, WEIGHTS, pickPicture } from './util.js';
 import { photoTime } from './phototime.js';
 import { vec, bodies, updateBodies, sunAltitude } from './astro.js';
 import * as store from './store.js';
@@ -247,7 +247,7 @@ function photoUrl(path) {
 async function nextPicture() {
   clearTimeout(pics.timer);
   if (pics.off || !pics.pool.length) { pics.el.hidden = true; return; }
-  const pic = pics.pool[pics.n++ % pics.pool.length], [a, b] = $$('img', pics.el), show = a.classList.contains('on') ? b : a, hide = show === a ? b : a;
+  const pic = pickPicture(pics), [a, b] = $$('img', pics.el), show = a.classList.contains('on') ? b : a, hide = show === a ? b : a;
   try {
     show.src = await photoUrl(pic.path);
     await show.decode?.().catch(() => {});
@@ -267,8 +267,7 @@ function fillFrame() {
   const pool = S.items.flatMap(i => (i.photos || []).map(path => ({ path, item: i })));
   const key = pool.map(p => p.path).join('|');
   if (key === pics.key) { for (const p of pics.pool) p.item = S.items.find(i => i.id === p.item.id) || p.item; return; }
-  for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }      // shuffle
-  Object.assign(pics, { pool, key, n: 0 });
+  Object.assign(pics, { pool, key, recent: [] });
   nextPicture();
 }
 pics.el.onclick = e => {

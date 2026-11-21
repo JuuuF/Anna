@@ -25,6 +25,18 @@ applyCats();
 // how much a moment matters, 1 (a small thing) … 5 (a life event); birth and last light always count fully
 export const weight = i => (i.fixed ? 5 : Math.min(5, Math.max(1, i.imp || 1)));
 export const WEIGHTS = ['eine Kleinigkeit', 'ein schöner Moment', 'wichtig', 'sehr wichtig', 'ein Lebensereignis'];
+// Which photo should the picture frame show next? By chance, but photos of important moments come up more often.
+// A moment with very many photos does not crowd out the others, and the last few photos shown are left out,
+// so that nothing repeats too soon.  state = { pool: [{ path, item }], recent: [] }
+export function pickPicture(state) {
+  const recent = state.recent || (state.recent = []), open = state.pool.filter(p => !recent.includes(p.path));
+  const from = open.length ? open : state.pool, chance = p => weight(p.item) / Math.sqrt(p.item.photos?.length || 1);
+  let r = Math.random() * from.reduce((sum, p) => sum + chance(p), 0), pic = from[from.length - 1];
+  for (const p of from) { r -= chance(p); if (r <= 0) { pic = p; break; } }
+  recent.push(pic.path);
+  while (recent.length > Math.min(5, Math.floor(state.pool.length / 2))) recent.shift();
+  return pic;
+}
 export const catColor = c => (CATS[c] || CATS.sonst)[1];
 
 // '1998-05-23' or '1998-05-23T14:30' -> ms (local time; a date without time counts as noon)
