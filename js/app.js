@@ -82,9 +82,11 @@ function frame() {
   if (S.view === 'space') { $('#thumb').style.top = scaleY(Math.min(W, H) * 0.4 / cam.scale) + 'px'; if (++ticks % 90 === 1) layoutScale(); }
   requestAnimationFrame(frame);
 }
+// what is under the pointer: the nearest point within reach, or a name plate it is on (with a few pixels to spare, more for fingers)
 function pick(x, y, reach = 20) {
   let best = null;
-  for (const h of hits) { const d = Math.hypot(h.x - x, h.y - y); if (d < reach) { reach = d; best = h.o; } }
+  const on = (r, m) => x > r[0] - m && x < r[0] + r[2] + m && y > r[1] - m && y < r[1] + r[3] + m;
+  for (const h of hits) { const d = h.rect ? (on(h.rect, reach / 5) ? 0 : Infinity) : Math.hypot(h.x - x, h.y - y); if (d < reach) { reach = d; best = h.o; } }
   return best;
 }
 // fly to something and look at it up close; the camera then turns and zooms around it instead of the Earth

@@ -130,6 +130,7 @@ export function starColor(ci) {
 
 // greedy label placement: important labels first, later ones are dropped if they would overlap
 // soft labels (star names) are limited to `maxSoft`, so small screens are not buried in text
+// every label that is drawn gets `rect` = [x, y, width, height]
 export function placeLabels(ctx, list, maxSoft = 1e9) {
   const done = [];
   let soft = 0;
@@ -140,7 +141,7 @@ export function placeLabels(ctx, list, maxSoft = 1e9) {
     const x = l.align === 'right' ? l.x - w : l.align === 'left' ? l.x : l.x - w / 2, y = l.y - h + (l.box ? 7 : 3);
     if (!l.force && ((l.soft && soft >= maxSoft) || done.some(r => x < r[0] + r[2] && x + w > r[0] && y < r[1] + r[3] && y + h > r[1]))) continue;
     if (l.soft) soft++;
-    done.push([x, y, w, h]);
+    done.push(l.rect = [x, y, w, h]);                   // where it went, so that it can be clicked
     ctx.globalAlpha = l.alpha ?? 1;
     ctx.textAlign = 'left';
     if (l.box) {                                         // a name plate: used for the moments of her life; `glow`: a soft light around it
