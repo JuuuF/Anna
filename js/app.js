@@ -244,6 +244,7 @@ function photoUrl(path) {
   if (!urls.has(path)) urls.set(path, store.photoBytes(path).then(b => URL.createObjectURL(new Blob([b], { type: 'image/jpeg' }))));
   return urls.get(path);
 }
+const PICTURE_SECONDS = 16;
 async function nextPicture() {
   clearTimeout(pics.timer);
   if (pics.off || !pics.pool.length) { pics.el.hidden = true; return; }
@@ -260,7 +261,9 @@ async function nextPicture() {
     pics.timer = setTimeout(nextPicture, pics.fails >= pics.pool.length ? 60000 : 600);
     return;
   }
-  pics.timer = setTimeout(nextPicture, document.hidden ? 20000 : 9000);
+  const bar = $('.bar', pics.el);                        // the line at the bottom shows how long this picture stays
+  bar.style.animation = 'none'; void bar.offsetWidth; bar.style.animation = `fill ${PICTURE_SECONDS}s linear forwards`;
+  pics.timer = setTimeout(nextPicture, PICTURE_SECONDS * 1000);
 }
 // called whenever the moments change (also after logging in or out)
 function fillFrame() {
