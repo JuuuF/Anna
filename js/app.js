@@ -314,7 +314,7 @@ function showStation() {
       : by && by[0] < 0.75 ? `Dieses Licht ist jetzt <b>${fmtDist(d)}</b> entfernt – gerade bei <b>${esc(by[1].n)}</b>.`
         : `Dieses Licht ist jetzt <b>${fmtDist(d)}</b> entfernt${next ? ` und erreicht in ${dur((next.d - d) * YEAR)} <b>${esc(next.n)}</b>` : ''}.`;
     const ph = o.photos || [];
-    h = `<div class="jbody">${ph.length ? `<figure><img data-photo="${esc(ph[0])}" alt="">${ph.length > 1 ? `<small>${ph.length} Fotos</small>` : ''}</figure>` : ''}
+    h = `<div class="jbody">${ph.length ? `<figure><img data-photo="${esc(ph[0])}" alt="">${ph.length > 1 ? `<div class="thumbs">${ph.slice(1, 5).map(p => `<img data-photo="${esc(p)}" alt="">`).join('')}</div><small>${ph.length} Fotos – antippen zum Durchblättern</small>` : ''}</figure>` : ''}
       <div><p class="meta">${J.i + 1} von ${n - 1} · ${o._e ? range(o) : fmtWhen(o.date)}${inLife(o._t) && o.id !== 'birth' ? ` · ${age(o._t, 'war').replace(/^Anna war /, '').replace(/ alt\.$/, '')}` : ''}</p>
       <h3>${esc(o.title)}</h3>${o.text ? `<p class="jtext">${esc(o.text)}</p>` : ''}<p>${where}</p></div></div>`;
     secs = Math.min(26, (8 + (o.text || '').length / 28 + ph.length * 3) * (0.7 + 0.1 * weight(o)));      // more time for what matters more
@@ -352,10 +352,31 @@ function hydrate(root) {
     const path = img.dataset.photo;
     (urls.get(path) || urls.set(path, store.photoBytes(path).then(b => URL.createObjectURL(new Blob([b], { type: 'image/jpeg' })))).get(path))
       .then(u => { img.src = u; }, () => { img.alt = 'Das Foto wird gerade noch veröffentlicht.'; });
-    img.onclick = () => { if (img.src) { $('#lightbox img').src = img.src; $('#lightbox').hidden = false; } };
+    img.onclick = e => {
+      if (!img.src || img.closest('#thumbs') || (img.closest('.wall'))) return;
+      e.stopPropagation();
+      const set = $$('img[data-photo]', img.closest('.photos, .jbody') || root).filter(i => i.src);
+      showPhoto(set.map(i => i.src), Math.max(0, set.indexOf(img)));
+    };
   }
 }
-$('#lightbox').onclick = () => { $('#lightbox').hidden = true; };
+const LB = { list: [], i: 0 };
+function showPhoto(list, i) {
+  Object.assign(LB, { list, i: (i + list.length) % list.length });
+  if (J.on && !J.paused) { J.paused = true; clearTimeout(J.timer); $('#journey').classList.add('paused'); const b = $('#journey [data-j=pause]'); if (b) b.textContent = 'Abspielen'; }   // looking at photos pauses the journey
+  $('#lightbox img').src = LB.list[LB.i]; $('#lbcount').textContent = `${LB.i + 1} von ${list.length}`;
+  $('.lbbar').classList.toggle('single', list.length < 2); $('#lightbox').hidden = false;
+}
+$('#lightbox').onclick = e => {
+  const step = e.target.dataset?.lb;
+  if (step && +step) showPhoto(LB.list, LB.i + +step);
+  else if (e.target.tagName !== 'IMG') $('#lightbox').hidden = true;
+};
+addEventListener('keydown', e => {
+  if ($('#lightbox').hidden) return;
+  if (e.key === 'ArrowRight') { e.stopImmediatePropagation(); showPhoto(LB.list, LB.i + 1); }
+  if (e.key === 'ArrowLeft') { e.stopImmediatePropagation(); showPhoto(LB.list, LB.i - 1); }
+}, true);
 $('#savePic').onclick = () => cv.toBlob(b => Object.assign(document.createElement('a'), { href: URL.createObjectURL(b), download: `annas-licht-${new Date().toISOString().slice(0, 10)}.png` }).click());
 const lock = i => (i.vis === 'private' ? '<span class="tag">nur Familie &amp; Freunde</span>' : '');
 const range = i => (i._e ? `${fmtWhen(i.date)} – ${i.end ? fmtWhen(i.end) : 'zuletzt'}` : fmtWhen(i.date));
@@ -514,7 +535,7 @@ function editItem(item) {
   openPanel('moments');
   const el = $('#p-moments .body'), i = item || { vis: 'private', cat: 'freude', photos: [] };
   let keep = [...(i.photos || [])];
-  const removed = [];
+  const removed = [], fresh = [];        // fresh: newly picked files, collected over as many picks as one likes
   const [d0, t0] = (i.date || '').split('T'), [d1, t1] = (i.end || '').split('T');
   el.innerHTML = `<form>
     <label>Was ist passiert?<input type="text" name="title" required maxlength="80" value="${esc(i.title)}" placeholder="z. B. Unsere Hochzeit"></label>
@@ -532,7 +553,7 @@ function editItem(item) {
       <input type="range" name="imp" min="1" max="5" step="1" value="${i.imp || 3}" style="accent-color:var(--gold)">
       <span style="display:flex;justify-content:space-between;font-size:12.5px"><span>eine Kleinigkeit</span><span>ein Lebensereignis</span></span></label>
     <label>Ein paar Worte dazu<textarea name="text" maxlength="4000" placeholder="Was möchtest du erzählen?">${esc(i.text)}</textarea></label>
-    <label>Fotos<input type="file" name="photos" accept="image/*" multiple></label>
+    <label>Fotos hinzufügen – gern mehrere, auch nach und nach<input type="file" name="photos" accept="image/*" multiple></label>
     <p class="muted" id="photoHint" style="margin:-8px 0 0" hidden></p>
     <div class="photos" id="thumbs"></div>
     <div class="choice">
@@ -545,9 +566,11 @@ function editItem(item) {
   </form>`;
   const form = $('form', el), status = $('.status', el);
   const thumbs = () => {
-    $('#thumbs').innerHTML = keep.map(p => `<figure><img data-photo="${esc(p)}" alt=""><button type="button" data-rm="${esc(p)}" aria-label="Foto entfernen">×</button></figure>`).join('');
+    $('#thumbs').innerHTML = keep.map(p => `<figure><img data-photo="${esc(p)}" alt=""><button type="button" data-rm="${esc(p)}" aria-label="Foto entfernen">×</button></figure>`).join('')
+      + fresh.map((f, n) => `<figure class="new"><img src="${f.url}" alt="" title="Neu – wird beim Speichern hochgeladen"><button type="button" data-rmnew="${n}" aria-label="Foto doch nicht hinzufügen">×</button></figure>`).join('');
     hydrate($('#thumbs'));
     $$('[data-rm]', el).forEach(b => b.onclick = () => { removed.push(b.dataset.rm); keep = keep.filter(p => p !== b.dataset.rm); thumbs(); });
+    $$('[data-rmnew]', el).forEach(b => b.onclick = () => { URL.revokeObjectURL(fresh.splice(+b.dataset.rmnew, 1)[0].url); thumbs(); });
   };
   const toggle = () => $$('[data-end]', el).forEach(n => { n.hidden = !form.period.value; $('[data-l=from]', el).textContent = form.period.value ? 'Von wann?' : 'Wann?'; });
   $$('[name=period]', el).forEach(r => r.onchange = toggle);
@@ -555,8 +578,10 @@ function editItem(item) {
   form.imp.oninput = impWord; impWord();
   // a chosen photo often knows when it was taken: from the camera's record or from its file name
   form.photos.onchange = async () => {
-    const hint = $('#photoHint');
-    for (const file of form.photos.files) {
+    const hint = $('#photoHint'), picked = [...form.photos.files];
+    for (const file of picked) fresh.push({ file, url: URL.createObjectURL(file) });
+    form.photos.value = ''; thumbs();
+    for (const file of picked) {
       const got = await photoTime(file, S.birth, S.death).catch(() => null);
       if (!got) continue;
       const when = showDate(got.date) + (got.time ? `, ${got.time} Uhr` : '');
@@ -590,7 +615,7 @@ function editItem(item) {
     busy(true); status.className = 'status'; status.textContent = 'Wird gespeichert … das dauert einen Augenblick.';
     try {
       const photos = [];
-      for (const file of f.photos.files) photos.push(await prepPhoto(file));
+      for (const { file } of fresh) photos.push(await prepPhoto(file));
       const { _t, _e, ...base } = i;
       const saved = await store.saveItem({
         ...base, title: f.title.value.trim(), date: withTime(date, time), period: !!f.period.value,
@@ -675,7 +700,7 @@ function renderAll() { life.draw(); renderDetail(); renderSoon(); renderMoments(
 const DEMO = [['Einschulung', '1976-08-30', '', 'kindheit'], ['Schulzeit', '1976-08-30', '1989-06-16', 'kindheit'], ['Konfirmation', '1984-04-15', '', 'kindheit'],
   ['Tanzkurs', '1986-10-03', '', 'freude'], ['Abitur', '1989-06-16', '', 'kindheit'], ['Ausbildung', '1989-09-01', '1992-07-31', 'beruf'], ['Erste Begegnung', '1994-07-09', '', 'liebe'],
   ['Hochzeit', '1998-05-23T14:30', '', 'liebe'], ['Ehe', '1998-05-23', null, 'liebe'], ['Einzug ins Haus', '2004-10-01', '', 'liebe'], ['Reise ans Meer', '2015-08-12', '', 'freude'],
-  ['Krankheit', '2023-03-01', null, 'krankheit']].map(([title, date, end, cat], n) => ({ id: 'demo' + n, title, date, end: end || '', period: end !== '', cat, vis: 'public', photos: [], imp: { Hochzeit: 5, 'Erste Begegnung': 5, Tanzkurs: 1, Konfirmation: 2 }[title],
+  ['Krankheit', '2023-03-01', null, 'krankheit']].map(([title, date, end, cat], n) => ({ id: 'demo' + n, title, date, end: end || '', period: end !== '', cat, vis: 'public', photos: title === 'Hochzeit' ? ['icon-512.png', 'icon-192.png', 'icon-180.png'] : [], imp: { Hochzeit: 5, 'Erste Begegnung': 5, Tanzkurs: 1, Konfirmation: 2 }[title],
   text: 'Ein Beispieltext, der nur beim Testen auf dem eigenen Rechner erscheint.' }));
 
 // ---------- start ----------
