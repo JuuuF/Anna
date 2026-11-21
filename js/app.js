@@ -279,6 +279,7 @@ function renderYear() {
 
 // ---------- the guided journey through her life ----------
 const J = { on: false, list: [], i: 0, paused: false, timer: 0 };
+if (PROBE || location.hash.includes('demo')) window.__J = J;      // for testing
 function stations() {
   const list = S.items.filter(i => i._t <= S.t);
   if (list.length < 8) {                       // few moments so far: her round birthdays give the journey its rhythm
@@ -288,12 +289,12 @@ function stations() {
     }
     list.sort((a, b) => a._t - b._t);
   }
-  return [...list, { end: true }];
+  return [...list, { finale: true }];      // not called "end": time spans carry an end date under that name
 }
 function startJourney(from = 0) {
   if (S.view !== 'space') setView('space');
   $$('.panel').forEach(p => { p.hidden = true; }); syncDock();
-  Object.assign(J, { on: true, list: stations(), i: from, paused: false });
+  Object.assign(J, { on: true, list: stations(), i: from, paused: false, failed: [] });
   document.body.classList.add('journey'); $('#play').textContent = 'Reise beenden';
   showStation();
 }
@@ -313,6 +314,7 @@ function arm() {
 function showStation() {
   try { drawStation(); } catch (e) {
     console.error(e);
+    (J.failed ||= []).push(`${J.list[J.i]?.title || '?'}: ${e?.message || e}`);
     if (J.i < J.list.length - 1) { J.i++; showStation(); } else stopJourney();
   }
 }
@@ -320,12 +322,12 @@ function drawStation() {
   clearTimeout(J.timer);
   const o = J.list[J.i], el = $('#journey'), n = J.list.length;
   let h, secs;
-  if (o.end) {
+  if (o.finale) {
     goHome(); S.sel = null;
     cam.target = clampScale(fit(Math.max((S.t - S.birth) / YEAR, 20) * 1.08, W, H));
     h = `<div class="jbody"><div><p class="meta">In diesem Augenblick</p><h3>Ihr Licht reist weiter</h3>
       <p>Jeder dieser Momente ist noch unterwegs. Gerade jetzt sehen ${litStars().length} Sterne dieser Karte Anna – jeder an einem anderen Tag ihres Lebens –, und mit jeder Sekunde kommen 299.792 Kilometer hinzu.</p>
-      <p class="muted">Nichts davon geht verloren.</p></div></div>`;
+      <p class="muted">Nichts davon geht verloren.</p>${J.failed?.length ? `<p class="fine">${J.failed.length} ${J.failed.length === 1 ? 'Moment konnte' : 'Momente konnten'} nicht gezeigt werden (${esc(J.failed.slice(0, 3).join(' · '))}). Bitte diese Zeile weitergeben.</p>` : ''}</div></div>`;
     secs = 0;
   } else {
     S.sel = o; cam.focus = o; cam.touched = performance.now();
@@ -342,8 +344,8 @@ function drawStation() {
   }
   el.innerHTML = `<div class="bar">${secs ? `<i style="animation-duration:${secs}s"></i>` : ''}</div>${h}
     <div class="row"><button data-j="prev" ${J.i ? '' : 'disabled'}>Zurück</button>
-      ${o.end ? '<button data-j="again">Noch einmal</button>' : `<button data-j="pause">${J.paused ? 'Abspielen' : 'Pause'}</button><button data-j="next" class="primary">Weiter</button>`}
-      ${o.end || o.auto ? '' : '<button data-j="more">Ganz ansehen</button>'}<button class="x" aria-label="Reise beenden">×</button></div>`;
+      ${o.finale ? '<button data-j="again">Noch einmal</button>' : `<button data-j="pause">${J.paused ? 'Abspielen' : 'Pause'}</button><button data-j="next" class="primary">Weiter</button>`}
+      ${o.finale || o.auto ? '' : '<button data-j="more">Ganz ansehen</button>'}<button class="x" aria-label="Reise beenden">×</button></div>`;
   el.classList.toggle('paused', J.paused); el.hidden = false; hydrate(el); life.draw();
   $('.x', el).onclick = stopJourney;
   $$('[data-j]', el).forEach(b => b.onclick = () => {
@@ -843,7 +845,10 @@ const DEMO = [['Einschulung', '1976-08-30', '', 'kindheit'], ['Schulzeit', '1976
   ['Tanzkurs', '1986-10-03', '', 'freude'], ['Abitur', '1989-06-16', '', 'kindheit'], ['Ausbildung', '1989-09-01', '1992-07-31', 'beruf'], ['Erste Begegnung', '1994-07-09', '', 'liebe'],
   ['Hochzeit', '1998-05-23T14:30', '', 'liebe'], ['Ehe', '1998-05-23', null, 'liebe'], ['Einzug ins Haus', '2004-10-01', '', 'liebe'], ['Reise ans Meer', '2015-08-12', '', 'freude'],
   ['Krankheit', '2023-03-01', null, 'krankheit']].map(([title, date, end, cat], n) => ({ id: 'demo' + n, title, date, end: end || '', period: end !== '', cat, vis: 'public', photos: title === 'Hochzeit' ? ['icon-512.png', 'icon-192.png', 'icon-180.png'] : [], imp: { Hochzeit: 5, 'Erste Begegnung': 5, Tanzkurs: 1, Konfirmation: 2 }[title],
-  text: 'Ein Beispieltext, der nur beim Testen auf dem eigenen Rechner erscheint.' }));
+  text: 'Ein Beispieltext, der nur beim Testen auf dem eigenen Rechner erscheint.' })).concat([
+  { id: 'r1', title: 'Fotos', date: '1981-07-01', period: false, end: '', cat: 'sonst', imp: 1, text: '', vis: 'private', photos: ['media/gibtsnicht.bin'], photoOnly: true, approx: true, by: 'Papa', updated: '2026-11-21T08:00:00.000Z' },
+  { id: 'r2', title: 'Fotos', date: '2012-05-15', period: false, end: '', cat: 'sonst', imp: 1, text: '', vis: 'private', photos: ['media/a.bin', 'media/b.bin'], photoOnly: true, approx: true, by: 'Papa', updated: '2026-11-21T08:10:00.000Z' },
+  { id: 'r3', title: 'Konzert', date: '2019-11-22T20:00', period: false, end: '', cat: 'gibtsnichtmehr', imp: 2, text: 'Zeile eins\nZeile zwei', vis: 'private', photos: [], by: 'Papa', updated: '2026-11-21T08:20:00.000Z' }]);
 
 // ---------- start ----------
 async function init() {
