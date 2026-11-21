@@ -309,9 +309,20 @@ export function drawSpace(ctx, W, H, S) {
 
   // ---- her lifeline: every moment at the distance its light has reached ----
   const up = d => [0, 0, d];
-  if (dOut > 0) {
-    ctx.strokeStyle = 'rgba(243,201,139,.22)'; ctx.lineWidth = 7; path([up(dIn), up(dOut)]); ctx.stroke();
-    ctx.strokeStyle = 'rgba(255,236,200,.95)'; ctx.lineWidth = 2; path([up(dIn), up(dOut)]); ctx.stroke();
+  // a straight piece of line, cut where it passes behind the eye (up close one end often is): its two ends on the screen, or null
+  const seg = (a, b) => {
+    const depth = v => rot([v[0] - cam.c[0], v[1] - cam.c[1], v[2] - cam.c[2]])[2], lim = -0.85 * E;     // proj() leaves out what is nearer than E / 8
+    const da = depth(a), db = depth(b), cut = (p, q, dp, dq) => p.map((v, k) => v + (q[k] - v) * (lim - dp) / (dq - dp));
+    if (da < lim && db < lim) return null;
+    const pa = proj(da < lim ? cut(a, b, da, db) : a), pb = proj(db < lim ? cut(b, a, db, da) : b);
+    return pa && pb ? [pa, pb] : null;
+  };
+  const line = dOut > 0 && seg(up(dIn), up(dOut));
+  if (line) {
+    for (const [color, width] of [['rgba(243,201,139,.22)', 7], ['rgba(255,236,200,.95)', 2]]) {
+      ctx.strokeStyle = color; ctx.lineWidth = width;
+      ctx.beginPath(); ctx.moveTo(line[0][0], line[0][1]); ctx.lineTo(line[1][0], line[1][1]); ctx.stroke();
+    }
   }
   const sel = S.sel && S.sel._t ? S.sel : null;
   if (sel) {
@@ -337,8 +348,8 @@ export function drawSpace(ctx, W, H, S) {
       let lane = lanes.findIndex(end => end <= it._t);
       if (lane < 0) lane = lanes.length;
       lanes[lane] = it._e;
-      const a = proj(up(d)), b = proj(up(dEnd));
-      if (!a || !b || Math.hypot(a[0] - b[0], a[1] - b[1]) < 3) continue;
+      const [a, b] = seg(up(d), up(dEnd)) || [];
+      if (!a || Math.hypot(a[0] - b[0], a[1] - b[1]) < 3) continue;
       const off = 7 + lane * 7;
       ctx.strokeStyle = color; ctx.lineWidth = on ? 6 : 4; ctx.lineCap = 'round'; ctx.globalAlpha = on ? 1 : 0.8;
       ctx.beginPath(); ctx.moveTo(a[0] + off, a[1]); ctx.lineTo(b[0] + off, b[1]); ctx.stroke();
