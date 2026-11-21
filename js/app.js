@@ -10,7 +10,8 @@ const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const S = { calm: matchMedia('(prefers-reduced-motion: reduce)').matches, t: Date.now(), offset: 0, view: 'space', sel: null, hover: null, stars: [], sky: null, items: [], birth: 0, death: 0, skyT: null };
 const cv = $('#view'), ctx = cv.getContext('2d');
-let W = 0, H = 0, hits = [], ticks = 0;
+let W = 0, H = 0, hits = [], ticks = 0, cost = 0;
+const PROBE = location.hash.includes('messen');
 
 // ---------- model ----------
 function rebuild() {
@@ -63,7 +64,9 @@ function frame() {
   const want = top + Math.max(120, H - top - bottom) / 2;
   S.cy = (S.cy ?? want) + (want - (S.cy ?? want)) * 0.15;
   updateBodies(S.t);
+  const t0 = performance.now();
   hits = (S.view === 'space' ? drawSpace : drawSky)(ctx, W, H, S);
+  if (PROBE) { cost = cost * 0.9 + (performance.now() - t0) * 0.1; document.title = `${cost.toFixed(1)} ms · ${S.stars.length} · ${S.items.length}`; }   // "#messen": how long one picture takes to draw
   $('#homeBtn').hidden = atHome();
   if (S.view === 'space') { $('#thumb').style.top = scaleY(Math.min(W, H) * 0.4 / cam.scale) + 'px'; if (++ticks % 90 === 1) layoutScale(); }
   requestAnimationFrame(frame);

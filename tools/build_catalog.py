@@ -122,16 +122,15 @@ for x in rows:
     name = GERMAN.get(x['proper'], x['proper']) if x['proper'] and float(x['mag']) < 2.1 else ''
     sky.append([round(float(x['ra']) * 15, 2), round(float(x['dec']), 2), round(float(x['mag']), 1),
                 round(float(x['ci']), 1) if x['ci'] else 0.6, round(dist * LY, 1) if dist < 90000 else 0, name])
-lines = []
-for f in json.load(open(os.path.join(raw, 'lines.json')))['features']:
-    for seg in f['geometry']['coordinates']:
-        lines.append([[round(lon % 360, 2), round(lat, 2)] for lon, lat in seg])
-names = [[round(f['geometry']['coordinates'][0] % 360, 1), round(f['geometry']['coordinates'][1], 1), f['properties']['de'].replace('\u2005', ' ')]
-         for f in json.load(open(os.path.join(raw, 'cons.json')))['features']]
+# constellations: id, German name, position of the name, figure lines
+lines = {f['id']: [[[round(lon % 360, 2), round(lat, 2)] for lon, lat in seg] for seg in f['geometry']['coordinates']]
+         for f in json.load(open(os.path.join(raw, 'lines.json')))['features']}
+figures = [[f['id'], f['properties']['de'].replace('\u2005', ' '), round(f['geometry']['coordinates'][0] % 360, 1), round(f['geometry']['coordinates'][1], 1), lines.get(f['id'], [])]
+           for f in json.load(open(os.path.join(raw, 'cons.json')))['features']]
 
 os.makedirs(out, exist_ok=True)
 json.dump(stars, open(os.path.join(out, 'stars.json'), 'w'), ensure_ascii=False, separators=(',', ':'))
-json.dump(dict(stars=sky, lines=lines, names=names), open(os.path.join(out, 'sky.json'), 'w'), ensure_ascii=False, separators=(',', ':'))
-print(len(stars), 'stars,', len(sky), 'sky stars,', len(lines), 'lines')
+json.dump(dict(stars=sky, cons=figures), open(os.path.join(out, 'sky.json'), 'w'), ensure_ascii=False, separators=(',', ':'))
+print(len(stars), 'stars,', len(sky), 'sky stars,', len(figures), 'constellations')
 print('habitable:', [(e['n'], e['d'], e['hz']) for e in stars if e.get('hz')])
 print('within 57 ly:', len([e for e in stars if e['d'] < 57]))

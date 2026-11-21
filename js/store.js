@@ -8,7 +8,7 @@
 //
 // Nothing secret is ever part of the page's code. Whoever does not know a name + password pair
 // only gets ciphertext. Roles (admin / editor / viewer) are a courtesy of the interface, not a security boundary.
-export const REPO = 'JuuuF/Anna', BRANCH = 'main';
+export const REPO = 'JuuuF/Annas-Licht', BRANCH = 'main';
 const API = `https://api.github.com/repos/${REPO}`;
 const te = new TextEncoder(), td = new TextDecoder();
 const rnd = n => crypto.getRandomValues(new Uint8Array(n));

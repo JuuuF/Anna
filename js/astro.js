@@ -95,6 +95,12 @@ export function altaz(ra, dec, lst, lat) {
   const az = Math.atan2(-Math.cos(d) * Math.sin(H), Math.sin(d) * Math.cos(p) - Math.cos(d) * Math.sin(p) * Math.cos(H));
   return [alt / RAD, ((az / RAD) + 360) % 360];
 }
+// where Sun and Moon stand (right ascension, declination in degrees) and how much of the Moon is lit (0 = new, 1 = full)
+export function sunMoon(ms) {
+  const s = helio(EL.Erde, ms).map(c => -c), m = moon(ms), sr = Math.hypot(...s), mr = Math.hypot(...m);
+  const rd = (v, r) => [((Math.atan2(v[1], v[0]) / RAD) + 360) % 360, Math.asin(v[2] / r) / RAD];
+  return { sun: rd(s, sr), moon: rd(m, mr), lit: (1 - (s[0] * m[0] + s[1] * m[1] + s[2] * m[2]) / (sr * mr)) / 2 };
+}
 export function sunAltitude(ms, place = NMS) {
   const s = helio(EL.Erde, ms).map(c => -c);
   const ra = Math.atan2(s[1], s[0]) / RAD, dec = Math.asin(s[2] / Math.hypot(...s)) / RAD;

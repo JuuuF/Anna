@@ -7,7 +7,7 @@ globalThis.fetch = async (url, opt = {}) => {
   const u = String(url), body = opt.body && JSON.parse(opt.body);
   if (!u.startsWith('https://')) { const f = files.get(u.split('?')[0]); return f ? res(200, f) : res(404, new Uint8Array()); }
   assert.equal(opt.headers.Authorization, 'Bearer TOKEN');
-  const p = u.replace('https://api.github.com/repos/JuuuF/Anna', '');
+  const p = u.replace('https://api.github.com/repos/JuuuF/Annas-Licht', '');
   if (p.startsWith('/contents/')) { const path = p.slice(10).split('?')[0]; return files.has(path) ? res(200, { sha: 'f:' + path }) : res(404, {}); }
   if (p.startsWith('/git/blobs/f:')) return res(200, { content: Buffer.from(files.get(p.slice(13))).toString('base64').replace(/(.{60})/g, '$1\n') });
   if (p === '/git/ref/heads/main') return res(200, { object: { sha: 'c' + head } });
