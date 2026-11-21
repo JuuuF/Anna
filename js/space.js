@@ -402,10 +402,8 @@ export function drawSpace(ctx, W, H, S) {
       ctx.beginPath(); ctx.moveTo(a[0] + off, a[1]); ctx.lineTo(b[0] + off, b[1]); ctx.stroke();
       ctx.globalAlpha = 1; ctx.lineCap = 'butt';
       const m = [(a[0] + b[0]) / 2 + off, (a[1] + b[1]) / 2];
-      if (onScreen(m)) {
-        labels.push({ o: it, x: m[0] + 10, y: m[1] + 4, text: it.title, align: 'left', color: '#fff', box: color, glow: w > 4 && color, font: 'italic 13px EB Garamond, Georgia, serif', prio: on ? 100 : 28 + 4 * w, force: on });
-        hits.push({ x: m[0], y: m[1], o: it }, { x: a[0] + off, y: a[1], o: it }, { x: b[0] + off, y: b[1], o: it });
-      }
+      if (onScreen(m)) labels.push({ o: it, x: m[0] + 10, y: m[1] + 4, text: it.title, align: 'left', color: '#fff', box: color, glow: w > 4 && color, font: 'italic 13px EB Garamond, Georgia, serif', prio: on ? 100 : 28 + 4 * w, force: on });
+      hits.push({ seg: [a[0] + off, a[1], b[0] + off, b[1]], o: it });     // the whole bar can be clicked, also when its middle is out of the picture
       continue;
     }
     const p = proj(up(d));
