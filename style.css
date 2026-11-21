@@ -178,6 +178,11 @@ label { display: grid; gap: 5px; font: 13.5px var(--sans); color: var(--muted); 
 input[type=text], input[type=password], input[type=date], input[type=time], select, textarea {
   width: 100%; background: #090b13; border: 1px solid var(--line2); border-radius: 3px; padding: 10px 12px; font-size: 16px; color-scheme: dark; }
 textarea { resize: vertical; min-height: 84px; font: 17px/1.45 var(--serif); }
+/* password field with a show / hide button at its right end */
+.pw { position: relative; }
+.pw input { padding-right: 96px; }
+.pw .show { position: absolute; right: 5px; bottom: 5px; padding: 5px 10px; font-size: 13.5px; color: var(--muted); background: transparent; border-color: transparent; }
+.pw .show:hover { color: var(--text); border-color: var(--line2); }
 .choice { display: grid; gap: 6px; }
 .choice label { display: flex; gap: 10px; align-items: flex-start; color: var(--text); font-size: 15px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 3px; cursor: pointer; }
 .choice label:has(input:checked) { border-color: var(--gold); }

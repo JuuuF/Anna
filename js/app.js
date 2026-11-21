@@ -911,6 +911,20 @@ function addPhotos() {
 
 // ---------- accounts ----------
 const ROLES = { admin: 'Verwaltung', editor: 'Mitgestalten', viewer: 'Nur ansehen' };
+// a password field with a button that shows what was typed, and hides it again
+// (the button sits beside the label, not in it, so that its text does not become part of the field's name)
+const pwField = (text, name, attrs) => `<div class="pw"><label>${text}<input type="password" name="${name}" ${attrs}></label><button type="button" class="show" aria-label="Passwort anzeigen">Anzeigen</button></div>`;
+function bindPw(root) {
+  $$('.pw .show', root).forEach(b => {
+    const input = $('input', b.parentNode);
+    b.onmousedown = e => e.preventDefault();             // the cursor stays in the field (and a phone keeps its keyboard)
+    b.onclick = () => {
+      const show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      b.textContent = show ? 'Verbergen' : 'Anzeigen'; b.setAttribute('aria-label', show ? 'Passwort verbergen' : 'Passwort anzeigen');
+    };
+  });
+}
 function renderLogin() {
   const el = $('#p-login .body'), s = store.state.session, st = store.state;
   $('#loginBtn').textContent = s ? s.name : 'Anmelden';
@@ -922,19 +936,21 @@ function renderLogin() {
   if (!s && !st.users.users.length) {
     el.innerHTML = `<p>Diese Seite ist noch nicht eingerichtet. Mit dem ersten Zugang wird der Schlüssel erzeugt, der alle privaten Erinnerungen schützt.</p>
       <form method="post"><label>Dein Name<input type="text" name="name" required autocomplete="username"></label>
-      <label>Passwort (am besten ein ganzer Satz)<input type="password" name="pass" required minlength="10" autocomplete="new-password"></label>
+      ${pwField('Passwort (am besten ein ganzer Satz)', 'pass', 'required minlength="10" autocomplete="new-password"')}
       <label>GitHub-Zugriffstoken (nur „Contents: Read and write“ für dieses Repository)<input type="password" name="token" required autocomplete="off"></label>
       <p class="status"></p><button class="primary">Einrichten</button></form>`;
+    bindPw(el);
     $('form', el).onsubmit = e => { e.preventDefault(); const f = e.target; act($('.status', el), 'Wird eingerichtet ...', () => store.setup(f.name.value, f.pass.value, f.token.value, true)); };
     return;
   }
   if (!s) {
     el.innerHTML = `<p>Mit einem Zugang siehst du alle Erinnerungen und Fotos und kannst eigene hinzufügen.</p>
       <form method="post"><label>Name<input type="text" name="name" required autocomplete="username"></label>
-      <label>Passwort<input type="password" name="pass" required autocomplete="current-password"></label>
+      ${pwField('Passwort', 'pass', 'required autocomplete="current-password"')}
       <label class="row" style="display:flex;color:var(--text)"><input type="checkbox" name="keep" checked> Auf diesem Gerät angemeldet bleiben</label>
       <p class="status"></p><button class="primary">Anmelden</button></form>
       <p class="fine">Du hast keinen Zugang? Wende dich bitte an die Familie.</p>`;
+    bindPw(el);
     $('form', el).onsubmit = e => { e.preventDefault(); const f = e.target; act($('.status', el), 'Einen Moment ...', () => store.login(f.name.value, f.pass.value, f.keep.checked)); };
     return;
   }
