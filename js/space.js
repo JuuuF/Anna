@@ -265,11 +265,11 @@ export function drawSpace(ctx, W, H, S) {
     }
     const p = proj(up(d));
     if (!onScreen(p) || d * sc < 4) continue;
-    const w = weight(it), q = (on ? 2 : 0) + 4.3 + 0.9 * w;      // moments are diamonds with a name plate – the more a moment matters, the larger
+    const w = it.photoOnly ? 0.4 : weight(it), q = (on ? 2 : 0) + 4.3 + 0.9 * w;      // moments are diamonds with a name plate – the more a moment matters, the larger
     ctx.beginPath(); ctx.moveTo(p[0], p[1] - q); ctx.lineTo(p[0] + q, p[1]); ctx.lineTo(p[0], p[1] + q); ctx.lineTo(p[0] - q, p[1]); ctx.closePath();
     ctx.fillStyle = it.id === 'death' ? '#1b1630' : color; ctx.fill();
     ctx.strokeStyle = on ? '#fff' : it.id === 'death' ? color : 'rgba(255,255,255,.85)'; ctx.lineWidth = on ? 2.5 : 1.5; ctx.stroke();
-    labels.push({ x: p[0] - 13, y: p[1] + 4, text: it.title, align: 'right', color: '#fff', box: on ? '#fff' : color, font: `${Math.round(11.5 + 0.9 * w)}px EB Garamond, Georgia, serif`, prio: on ? 100 : 36 + 5 * w, force: on });
+    labels.push({ x: p[0] - 13, y: p[1] + 4, text: it.title, align: 'right', color: '#fff', box: on ? '#fff' : color, font: `${Math.round(11.5 + 0.9 * w)}px EB Garamond, Georgia, serif`, prio: on ? 100 : it.photoOnly ? 9 : 36 + 5 * w, force: on, soft: !!it.photoOnly });
     hits.push({ x: p[0], y: p[1], o: it });
   }
 

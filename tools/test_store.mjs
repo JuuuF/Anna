@@ -39,6 +39,10 @@ assert.ok(!Buffer.from(files.get('data/private.enc')).includes('Geheimer'), 'pri
 assert.ok(!Buffer.from(files.get(priv.photos[0])).includes(Buffer.from(jpg)), 'private photo must be ciphertext');
 assert.ok(!text('data/users.json').includes('TOKEN') && !text('data/users.json').includes('Papa'));
 
+const many = await store.saveMany([{ item: { title: 'Fotos', date: '2019-08-12', vis: 'private', photos: [] }, newPhotos: [jpg, jpg] },
+  { item: { ...pub, title: 'Öffentlicher Tag' }, newPhotos: [jpg] }]);
+assert.equal(many[0].photos.length, 2); assert.equal(many[1].photos.length, 2); assert.equal(store.state.items.length, 3);
+await store.deleteItem(many[0]);
 await store.logout();                                   // visitor without account
 assert.deepEqual(store.state.items.map(i => i.title), ['Öffentlicher Tag']);
 await assert.rejects(store.login('Papa', 'falsch', false), /stimmen nicht/);

@@ -50,7 +50,7 @@ export function createLife(cv, S, { onYear, onItem, label }) {
     }
     ctx.globalAlpha = 1;
     for (const i of moments()) {
-      const x = xOf(i._t), q = (S.sel === i ? 2 : 0) + 3.2 + 0.6 * weight(i);
+      const x = xOf(i._t), q = (S.sel === i ? 2 : 0) + (i.photoOnly ? 2.6 : 3.2 + 0.6 * weight(i));
       ctx.beginPath(); ctx.moveTo(x, y - q); ctx.lineTo(x + q, y); ctx.lineTo(x, y + q); ctx.lineTo(x - q, y); ctx.closePath();
       ctx.fillStyle = i.id === 'death' ? '#1b1630' : catColor(i.cat); ctx.fill();
       ctx.strokeStyle = S.sel === i ? '#fff' : 'rgba(255,255,255,.75)'; ctx.lineWidth = S.sel === i ? 2 : 1; ctx.stroke();

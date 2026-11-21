@@ -317,7 +317,7 @@ function showStation() {
         : `Dieses Licht ist jetzt <b>${fmtDist(d)}</b> entfernt${next ? ` und erreicht in ${dur((next.d - d) * YEAR)} <b>${esc(next.n)}</b>` : ''}.`;
     const ph = o.photos || [];
     h = `<div class="jbody">${ph.length ? `<figure><img data-photo="${esc(ph[0])}" alt="">${ph.length > 1 ? `<div class="thumbs">${ph.slice(1, 5).map(p => `<img data-photo="${esc(p)}" alt="">`).join('')}</div><small>${ph.length} Fotos – antippen zum Durchblättern</small>` : ''}</figure>` : ''}
-      <div><p class="meta">${J.i + 1} von ${n - 1} · ${o._e ? range(o) : fmtWhen(o.date)}${inLife(o._t) && o.id !== 'birth' ? ` · ${age(o._t, 'war').replace(/^Anna war /, '').replace(/ alt\.$/, '')}` : ''}</p>
+      <div><p class="meta">${J.i + 1} von ${n - 1} · ${range(o)}${inLife(o._t) && o.id !== 'birth' ? ` · ${age(o._t, 'war').replace(/^Anna war /, '').replace(/ alt\.$/, '')}` : ''}</p>
       <h3>${esc(o.title)}</h3>${o.text ? `<p class="jtext">${esc(o.text)}</p>` : ''}<p>${where}</p></div></div>`;
     secs = Math.min(26, (8 + (o.text || '').length / 28 + ph.length * 3) * (0.7 + 0.1 * weight(o)));      // more time for what matters more
   }
@@ -381,7 +381,8 @@ addEventListener('keydown', e => {
 }, true);
 $('#savePic').onclick = () => cv.toBlob(b => Object.assign(document.createElement('a'), { href: URL.createObjectURL(b), download: `annas-licht-${new Date().toISOString().slice(0, 10)}.png` }).click());
 const lock = i => (i.vis === 'private' ? '<span class="tag">nur Familie &amp; Freunde</span>' : '');
-const range = i => (i._e ? `${fmtWhen(i.date)} – ${i.end ? fmtWhen(i.end) : 'zuletzt'}` : fmtWhen(i.date));
+// photos whose day nobody remembers only claim their month or year
+const range = i => (i._e ? `${fmtWhen(i.date)} – ${i.end ? fmtWhen(i.end) : 'zuletzt'}` : i.approx ? (i.date.endsWith('-07-01') ? `im Jahr ${i.date.slice(0, 4)}` : `im ${monthYear(parseWhen(i.date))}`) : fmtWhen(i.date));
 
 // ---------- detail ----------
 function renderDetail() {
@@ -470,7 +471,7 @@ function renderSoon() {
   const tonight = up.map(([, s]) => `<li data-sky="${esc(s.n)}"><span class="dot lit"></span><div>${esc(s.n)}<small>sieht gerade den ${fmtDate(t - s.d * YEAR)} – ${age(t - s.d * YEAR).replace(/\.$/, '')}</small></div></li>`).join('');
   // anniversaries within the next 30 days
   const today = new Date(); today.setHours(12, 0, 0, 0);
-  const days = S.items.filter(i => !i._e && i._t < today.getTime()).map(i => {
+  const days = S.items.filter(i => !i._e && !i.photoOnly && i._t < today.getTime()).map(i => {
     const d = new Date(i._t), next = new Date(today.getFullYear(), d.getMonth(), d.getDate(), 12);
     if (next < today) next.setFullYear(next.getFullYear() + 1);
     return { i, inDays: Math.round((next - today) / 864e5), years: next.getFullYear() - d.getFullYear() };
@@ -514,7 +515,7 @@ function renderMoments() {
     return;
   }
   momentsTab = 'list';
-  el.innerHTML = (can ? '<p><button class="primary" id="add">+ Einen Moment hinzufügen</button></p>'
+  el.innerHTML = (can ? '<p class="row"><button class="primary" id="add">Einen Moment hinzufügen</button><button id="addPhotos">Nur Fotos hinzufügen</button></p>'
     : '<p class="muted">Wer Anna kannte, kann hier eigene Erinnerungen hinzufügen – dafür bitte unten auf „Anmelden“ tippen.</p>')
     + tools + `<ul class="list">${shown.map(i => `<li data-id="${i.id}"><span class="swatch ${i._e ? 'span' : ''}" style="background:${catColor(i.cat)}"></span>
       <div style="flex:1">${esc(i.title)} ${lock(i)}<small>${range(i)}${i.photos?.length ? ` · ${i.photos.length} Foto${i.photos.length > 1 ? 's' : ''}` : ''}</small></div>
@@ -523,7 +524,7 @@ function renderMoments() {
   $$('[data-tab]', el).forEach(b => b.onclick = () => { momentsTab = b.dataset.tab; renderMoments(); });
   $$('[data-edit]', el).forEach(b => b.onclick = e => { e.stopPropagation(); editItem(S.items.find(i => i.id === b.dataset.edit)); });
   if ($('#find')) $('#find').oninput = e => { momentsFind = e.target.value; renderMoments(); const f = $('#find'); f.focus(); f.setSelectionRange(f.value.length, f.value.length); };
-  if (can) $('#add').onclick = () => editItem(null);
+  if (can) { $('#add').onclick = () => editItem(null); $('#addPhotos').onclick = addPhotos; }
 }
 
 async function prepPhoto(file) {
@@ -622,10 +623,85 @@ function editItem(item) {
       const { _t, _e, ...base } = i;
       const saved = await store.saveItem({
         ...base, title: f.title.value.trim(), date: withTime(date, time), period: !!f.period.value,
-        end: withTime(end, endtime), cat: f.cat.value, imp: +f.imp.value, text: f.text.value.trim(), vis: f.vis.value, photos: keep,
+        end: withTime(end, endtime), photoOnly: !!base.photoOnly && f.title.value.trim() === 'Fotos', cat: f.cat.value, imp: +f.imp.value, text: f.text.value.trim(), vis: f.vis.value, photos: keep,
       }, photos, removed);
       rebuild(); select(S.items.find(x => x.id === saved.id));
     } catch (err) { fail(err); }
+  };
+}
+
+// ---------- photos without a story: each finds its place on the lifeline by its date ----------
+// "23.05.1998", or just "05.1998" or "1998" when nobody remembers the day
+function looseDate(text) {
+  const s = text.trim(), full = readDate(s);
+  if (full) return { date: full, approx: false };
+  let m = /^(0?[1-9]|1[0-2])[.\/ -]((?:19|20)\d{2})$/.exec(s);
+  if (m) return { date: `${m[2]}-${m[1].padStart(2, '0')}-15`, approx: true };
+  m = /^((?:19|20)\d{2})$/.exec(s);
+  return m ? { date: `${m[1]}-07-01`, approx: true } : null;
+}
+function addPhotos() {
+  openPanel('moments');
+  const el = $('#p-moments .body'), rows = [];          // { file, url, date (German text), time }
+  el.innerHTML = `<form>
+    <p>Fotos brauchen keine Geschichte. Jedes findet seinen Platz über das Datum – das wird, wenn möglich, aus dem Foto gelesen.</p>
+    <label>Fotos auswählen – gern viele auf einmal<input type="file" name="photos" accept="image/*" multiple></label>
+    <div id="rows"></div>
+    <div class="choice">
+      <label><input type="radio" name="vis" value="private" checked><span>Nur für Familie &amp; Freunde<small>verschlüsselt, nur mit Anmeldung sichtbar</small></span></label>
+      <label><input type="radio" name="vis" value="public"><span>Für alle Besucher<small>öffentlich im Internet sichtbar</small></span></label>
+    </div>
+    <p class="status"></p>
+    <div class="row"><button class="primary">Fotos speichern</button><button type="button" id="cancel">Abbrechen</button></div>
+  </form>`;
+  const form = $('form', el), status = $('.status', el);
+  const draw = () => {
+    $('#rows').innerHTML = rows.map((r, n) => `<div class="photorow"><img src="${r.url}" alt="">
+      <label>${r.found ? 'Aufgenommen am' : 'Wann war das? Der Tag, der Monat oder nur das Jahr'}<input type="text" inputmode="numeric" data-n="${n}" value="${esc(r.date)}" placeholder="TT.MM.JJJJ oder nur JJJJ" autocomplete="off"></label>
+      <button type="button" data-rm="${n}" aria-label="Foto doch nicht hinzufügen">×</button></div>`).join('');
+    $$('#rows input', el).forEach(i => i.oninput = () => { rows[+i.dataset.n].date = i.value; rows[+i.dataset.n].time = ''; });
+    $$('#rows [data-rm]', el).forEach(b => b.onclick = () => { URL.revokeObjectURL(rows.splice(+b.dataset.rm, 1)[0].url); draw(); });
+  };
+  form.photos.onchange = async () => {
+    for (const file of [...form.photos.files]) {
+      const got = await photoTime(file, S.birth, S.death).catch(() => null);
+      rows.push({ file, url: URL.createObjectURL(file), date: got ? showDate(got.date) : '', time: got?.time || '', found: !!got });
+    }
+    form.photos.value = ''; draw();
+  };
+  $('#cancel').onclick = renderMoments;
+  form.onsubmit = async e => {
+    e.preventDefault();
+    const bad = m => { status.className = 'status err'; status.textContent = m; };
+    if (!rows.length) return bad('Bitte zuerst Fotos auswählen.');
+    const days = new Map();                               // photos of the same day belong together
+    for (const r of rows) {
+      const d = looseDate(r.date);
+      if (!d) return bad('Bitte bei jedem Foto ein Datum eintragen – notfalls nur das Jahr, zum Beispiel 1998.');
+      if (parseWhen(d.date) < S.birth - 864e5 || parseWhen(d.date) > Date.now()) return bad(`Das Datum ${r.date} liegt außerhalb der Zeit, die diese Seite zeigt.`);
+      if (!days.has(d.date)) days.set(d.date, { ...d, time: r.time, files: [] });
+      days.get(d.date).files.push(r.file);
+    }
+    $$('button', form).forEach(b => { b.disabled = true; });
+    status.className = 'status'; status.textContent = 'Wird gespeichert … bei vielen Fotos dauert das einen Moment.';
+    try {
+      const vis = form.vis.value, entries = [];
+      let joined = 0;
+      for (const d of days.values()) {
+        const newPhotos = [];
+        for (const file of d.files) newPhotos.push(await prepPhoto(file));
+        // a moment of that very day, with the same visibility, takes the photos in; otherwise they stand for themselves
+        const host = d.approx ? null : S.items.find(i => !i._e && !i.fixed && i.date.slice(0, 10) === d.date && i.vis === vis && store.canEdit(i));
+        if (host) { const { _t, _e, ...base } = host; entries.push({ item: base, newPhotos }); joined += d.files.length; }
+        else entries.push({ item: { title: 'Fotos', date: d.time && !d.approx ? `${d.date}T${d.time}` : d.date, period: false, end: '', cat: 'freude', imp: 1, text: '', vis, photos: [], photoOnly: true, approx: d.approx }, newPhotos });
+      }
+      await store.saveMany(entries);
+      momentsTab = 'wall'; rebuild();
+      if (joined) alert(`${joined} ${joined === 1 ? 'Foto wurde' : 'Fotos wurden'} zu einem Moment hinzugefügt, der am selben Tag stattfand.`);
+    } catch (err) {
+      $$('button', form).forEach(b => { b.disabled = false; });
+      bad('Das hat leider nicht geklappt: ' + (err.message || err.name || 'unbekannter Fehler')); console.error(err);
+    }
   };
 }
 

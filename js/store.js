@@ -201,18 +201,27 @@ async function storePhoto(bytes, priv, files) {
   return path;
 }
 // item.photos: paths to keep · newPhotos: JPEG bytes to add · removed: paths to delete
-export async function saveItem(item, newPhotos = [], removed = []) {
-  const priv = item.vis === 'private', files = removed.map(path => ({ path, bytes: null })), photos = [];
+// prepares one moment for saving: stores its photos the right way and collects the files to write
+async function stage(item, newPhotos, removed, files) {
+  const priv = item.vis === 'private', photos = [];
+  files.push(...removed.map(path => ({ path, bytes: null })));
   for (const p of item.photos || []) {
     if (p.endsWith('.bin') === priv) { photos.push(p); continue; }
     photos.push(await storePhoto(await photoBytes(p), priv, files));     // visibility changed: store it the other way
     files.push({ path: p, bytes: null });
   }
   for (const bytes of newPhotos) photos.push(await storePhoto(bytes, priv, files));
-  const clean = { ...item, photos, id: item.id || newId(), by: item.by || state.session.name, updated: new Date().toISOString() };
-  await persist(() => { state.items = state.items.filter(i => i.id !== clean.id).concat(clean); }, files);
+  return { ...item, photos, id: item.id || newId(), by: item.by || state.session.name, updated: new Date().toISOString() };
+}
+// several moments in one go (one commit): entries = [{ item, newPhotos, removed }]
+export async function saveMany(entries) {
+  const files = [], clean = [];
+  for (const e of entries) clean.push(await stage(e.item, e.newPhotos || [], e.removed || [], files));
+  const ids = new Set(clean.map(c => c.id));
+  await persist(() => { state.items = state.items.filter(i => !ids.has(i.id)).concat(clean); }, files);
   return clean;
 }
+export const saveItem = async (item, newPhotos = [], removed = []) => (await saveMany([{ item, newPhotos, removed }]))[0];
 export const deleteItem = item => persist(
   () => { state.items = state.items.filter(i => i.id !== item.id); },
   (item.photos || []).map(path => ({ path, bytes: null })));
