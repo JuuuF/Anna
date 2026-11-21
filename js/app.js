@@ -441,7 +441,15 @@ addEventListener('keydown', e => {
   if (e.key === 'ArrowRight') { e.stopImmediatePropagation(); showPhoto(LB.list, LB.i + 1); }
   if (e.key === 'ArrowLeft') { e.stopImmediatePropagation(); showPhoto(LB.list, LB.i - 1); }
 }, true);
-$('#savePic').onclick = () => cv.toBlob(b => Object.assign(document.createElement('a'), { href: URL.createObjectURL(b), download: `annas-licht-${new Date().toISOString().slice(0, 10)}.png` }).click());
+// the saved picture gets the dark background of the page (the map itself is drawn on a see-through sheet) and a small signature
+$('#savePic').onclick = () => {
+  const out = Object.assign(document.createElement('canvas'), { width: cv.width, height: cv.height }), c = out.getContext('2d'), k = cv.width / cv.clientWidth;
+  c.fillStyle = getComputedStyle(document.body).backgroundColor || '#070912'; c.fillRect(0, 0, out.width, out.height);
+  c.drawImage(cv, 0, 0);
+  c.font = `${Math.round(15 * k)}px EB Garamond, Georgia, serif`; c.textAlign = 'right'; c.fillStyle = 'rgba(233,229,220,.75)';
+  c.fillText(`Annas Licht · ${fmtDate(S.t)}`, out.width - 18 * k, out.height - 16 * k);
+  out.toBlob(blob => Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `annas-licht-${new Date().toISOString().slice(0, 10)}.png` }).click());
+};
 const lock = i => (i.vis === 'private' ? '<span class="tag">nur Familie &amp; Freunde</span>' : '');
 // photos whose day nobody remembers only claim their month or year
 const range = i => (i._e ? `${fmtWhen(i.date)} – ${i.end ? fmtWhen(i.end) : 'zuletzt'}` : i.approx ? (i.date.endsWith('-07-01') ? `im Jahr ${i.date.slice(0, 4)}` : `im ${monthYear(parseWhen(i.date))}`) : fmtWhen(i.date));
