@@ -56,6 +56,35 @@ function sprite() {
   c.fillStyle = g; c.fillRect(0, 0, 64, 64);
 }
 
+// ---- the look of a planetarium program: glowing stars, the band of the Milky Way, a dark treeline ----
+const halos = new Map();
+function halo(color) {
+  if (!halos.has(color)) {
+    const c = Object.assign(document.createElement('canvas'), { width: 64, height: 64 }), x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+    g.addColorStop(0, '#fff'); g.addColorStop(.12, color); g.addColorStop(.3, color + '55'); g.addColorStop(1, color + '00');
+    x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+    halos.set(color, c);
+  }
+  return halos.get(color);
+}
+// soft patches along the galactic plane, brighter towards the centre of the galaxy (Sagittarius) and in Cygnus
+const GP = [192.859, 27.128, 122.932].map(v => v * RAD);
+const milky = [];
+for (let l = 0; l < 360; l += 2) for (let k = 0; k < 2; k++) {
+  const b = (hash(l, k) - 0.5) * (hash(l, k + 7) < 0.3 ? 16 : 8) * RAD, L = l * RAD;
+  const dec = Math.asin(Math.sin(b) * Math.sin(GP[1]) + Math.cos(b) * Math.cos(GP[1]) * Math.cos(GP[2] - L));
+  const ra = GP[0] + Math.atan2(Math.cos(b) * Math.sin(GP[2] - L), Math.sin(b) * Math.cos(GP[1]) - Math.cos(b) * Math.sin(GP[1]) * Math.cos(GP[2] - L));
+  const centre = Math.cos(L) * 0.5 + 0.5, cygnus = Math.exp(-(((l - 75) / 22) ** 2));
+  milky.push([ra / RAD, dec / RAD, 5 + hash(l, k + 3) * 6, 0.035 + 0.05 * centre ** 2 + 0.03 * cygnus + 0.02 * hash(l, k + 5)]);
+}
+let mist = null;
+function mistSprite() {
+  mist = Object.assign(document.createElement('canvas'), { width: 64, height: 64 });
+  const x = mist.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, 'rgba(190,205,235,1)'); g.addColorStop(.5, 'rgba(170,190,230,.45)'); g.addColorStop(1, 'rgba(160,180,225,0)');
+  x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+}
+
 export function drawSky(ctx, W, H, S) {
   const t = S.t, when = S.skyT ?? Date.now(), hits = [], labels = [];
   const dOut = (t - S.birth) / YEAR, dIn = Math.max(0, (t - S.death) / YEAR);
@@ -90,18 +119,28 @@ export function drawSky(ctx, W, H, S) {
   // sky
   const hy = Math.min(H * 3, cy + Sc * Math.tan(a0));                // where the horizon crosses the middle of the picture
   const sky = ctx.createLinearGradient(0, hy - 1.1 * H, 0, hy);
-  sky.addColorStop(0, '#060920'); sky.addColorStop(.7, '#10173c'); sky.addColorStop(1, '#232a5c');
+  sky.addColorStop(0, '#02040b'); sky.addColorStop(.6, '#060b1a'); sky.addColorStop(1, '#101a30');
   ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+  if (!mist) mistSprite();
+  for (const [ra, dec, size, alpha] of milky) {
+    const p = star(ra, dec);
+    if (!p || p[3] < -2) continue;
+    const px = Math.min(p[4], 3 * Sc) * size * RAD;
+    if (p[0] < -px || p[0] > W + px || p[1] < -px || p[1] > H + px) continue;
+    ctx.globalAlpha = alpha * Math.min(1, 0.25 + p[3] / 30);
+    ctx.drawImage(mist, p[0] - px, p[1] - px, 2 * px, 2 * px);
+  }
+  ctx.globalAlpha = 1;
 
   // a faint grid makes the dome readable: circles of equal height, lines towards the zenith
-  ctx.strokeStyle = 'rgba(150,170,230,.09)'; ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(120,150,210,.07)'; ctx.lineWidth = 1;
   for (const alt of [15, 30, 45, 60, 75]) { ctx.beginPath(); let pen = false; for (let az = 0; az <= 360; az += 3) { const p = P(alt, az); if (p) { pen ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); } pen = !!p; } ctx.stroke(); }
   for (let az = 0; az < 360; az += 22.5) { ctx.beginPath(); let pen = false; for (let alt = 0; alt <= 90; alt += 5) { const p = P(alt, az); if (p) { pen ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); } pen = !!p; } ctx.stroke(); }
   const zen = P(90, 0);
   if (seen(zen)) labels.push({ x: zen[0], y: zen[1] - 6, text: 'Zenit', color: 'rgba(150,170,230,.5)', font: '10px "Source Sans 3", system-ui, sans-serif', prio: 4 });
 
   if (S.sky) {
-    ctx.strokeStyle = 'rgba(150,170,230,.3)';
+    ctx.strokeStyle = 'rgba(64,118,190,.75)'; ctx.lineWidth = 1.3;
     for (const line of S.sky.lines) {
       ctx.beginPath();
       let prev = null;
@@ -114,15 +153,16 @@ export function drawSky(ctx, W, H, S) {
     }
     for (const [ra, dec, name] of S.sky.names) {
       const p = star(ra, dec);
-      if (seen(p) && p[3] > 6) labels.push({ x: p[0], y: p[1], text: name.toUpperCase(), color: 'rgba(150,170,230,.55)', font: '10px "Source Sans 3", system-ui, sans-serif', prio: 5 });
+      if (seen(p) && p[3] > 6) labels.push({ x: p[0], y: p[1], text: name, color: 'rgba(120,165,225,.85)', font: '14px "Source Sans 3", system-ui, sans-serif', prio: 5 });
     }
     const grow = Math.min(1.8, Math.max(0.8, Math.sqrt(skyCam.zoom)));
     for (const s of S.sky.stars) {
       const p = star(s[0], s[1]);
       if (!seen(p) || p[3] < 0) continue;
-      ctx.globalAlpha = Math.min(0.9, 0.35 + p[3] / 25); ctx.fillStyle = starColor(s[3]);       // dimmer in the haze near the horizon
-      ctx.beginPath(); ctx.arc(p[0], p[1], Math.max(0.7, 3.2 - 0.55 * s[2]) * grow, 0, 7); ctx.fill();
-      if (s[5] && s[2] < 1.6 && !(s[4] && s[4] <= dOut && s[4] >= dIn)) labels.push({ x: p[0], y: p[1] + 17, text: s[5], color: 'rgba(210,215,235,.65)', font: '11px "Source Sans 3", system-ui, sans-serif', prio: 6 });
+      ctx.globalAlpha = Math.min(1, 0.4 + p[3] / 22);       // dimmer in the haze near the horizon
+      const hr = Math.min(17, Math.max(1.6, (5.4 - s[2]) * 2.1)) * grow;
+      ctx.drawImage(halo(starColor(s[3])), p[0] - hr, p[1] - hr, 2 * hr, 2 * hr);
+      if (s[5] && s[2] < 1.6 && !(s[4] && s[4] <= dOut && s[4] >= dIn)) labels.push({ x: p[0], y: p[1] + 20, text: s[5], color: 'rgba(225,230,240,.8)', font: '12.5px "Source Sans 3", system-ui, sans-serif', prio: 6 });
     }
     ctx.globalAlpha = 1;
   }
@@ -172,17 +212,29 @@ export function drawSky(ctx, W, H, S) {
   }
 
   // the ground: everything outside the horizon circle
-  if (hy < H + 40) {                                   // the horizon is a straight, level line in this projection
-    ctx.fillStyle = '#05060f'; ctx.fillRect(0, hy, W, H - hy + 1);
-    for (const [w, a] of [[26, 0.05], [10, 0.08], [1.5, 0.5]]) { ctx.fillStyle = `rgba(243,201,139,${a})`; ctx.fillRect(0, hy - w / 2, W, w); }
+  if (hy < H + 60) {                                   // haze above the horizon, then a dark line of trees and fields
+    const haze = ctx.createLinearGradient(0, hy - 90, 0, hy);
+    haze.addColorStop(0, 'rgba(60,85,130,0)'); haze.addColorStop(1, 'rgba(60,85,130,.3)');
+    ctx.fillStyle = haze; ctx.fillRect(0, hy - 90, W, 90);
+    ctx.beginPath(); ctx.moveTo(-10, H + 10);
+    let lastX = -10;
+    for (let d = -88; d <= 88; d += 0.5) {
+      const az = skyCam.az + d, trees = 0.35 + 1.5 * smooth(az / 6, 3) + 0.9 * smooth(az / 1.1, 9) * smooth(az / 9, 5);
+      const p = P(trees, az, 0.03);
+      if (!p) continue;
+      ctx.lineTo(p[0], p[1]); lastX = p[0];
+    }
+    ctx.lineTo(Math.max(lastX, W + 10), H + 10); ctx.closePath();
+    ctx.fillStyle = '#03040a'; ctx.fill();
+    ctx.fillRect(0, hy, W, H - hy + 1);
   }
   ctx.textAlign = 'center';
   ['N', 'NO', 'O', 'SO', 'S', 'SW', 'W', 'NW'].forEach((name, i) => {
     const p = P(0, i * 45);
     if (!seen(p)) return;
     const ex = 0, ey = 1;
-    ctx.font = i % 2 ? '12px EB Garamond, Georgia, serif' : '16px EB Garamond, Georgia, serif'; ctx.fillStyle = i % 2 ? 'rgba(243,201,139,.6)' : 'rgba(243,201,139,.95)';
-    ctx.fillText(name, p[0] + ex * 20, p[1] + ey * 20 + 5);
+    ctx.font = i % 2 ? '600 13px "Source Sans 3", system-ui, sans-serif' : '600 19px "Source Sans 3", system-ui, sans-serif'; ctx.fillStyle = i % 2 ? 'rgba(200,96,90,.7)' : '#cf645d';
+    ctx.fillText(name, p[0] + ex * 20, p[1] + ey * 22 + 6);
   });
 
   placeLabels(ctx, labels);
