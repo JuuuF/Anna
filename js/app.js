@@ -248,10 +248,11 @@ const PICTURE_SECONDS = 16;
 async function nextPicture() {
   clearTimeout(pics.timer);
   if (pics.off || !pics.pool.length) { pics.el.hidden = true; return; }
-  const pic = pickPicture(pics), [a, b] = $$('img', pics.el), show = a.classList.contains('on') ? b : a, hide = show === a ? b : a;
+  const pic = pickPicture(pics), [a, b] = $$('.pic', pics.el), show = a.classList.contains('on') ? b : a, hide = show === a ? b : a;
   try {
-    show.src = await photoUrl(pic.path);
-    await show.decode?.().catch(() => {});
+    const url = await photoUrl(pic.path), imgs = $$('img', show);
+    for (const img of imgs) img.src = url;
+    await Promise.all(imgs.map(img => img.decode?.().catch(() => {})));
     show.classList.add('on'); hide.classList.remove('on');
     pics.now = pic.item; pics.el.hidden = false;
     $('figcaption', pics.el).textContent = `${pic.item.title === 'Fotos' ? '' : pic.item.title + ', '}${pic.item.date.slice(0, 4)}`;

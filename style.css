@@ -112,8 +112,10 @@ body.journey #hint, body.journey #yearcard, body.journey #zoom { display: none !
 /* ---- the picture frame: photos of her life, one after another ---- */
 #frame { position: fixed; left: 26px; bottom: calc(var(--bottom) + 16px); width: 236px; aspect-ratio: 4 / 3; margin: 0; overflow: hidden; cursor: pointer;
   background: var(--panel); border: 1px solid var(--line2); border-radius: 3px; box-shadow: 0 10px 30px rgba(0, 0, 0, .55); }
-#frame img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 1.6s ease; }
-#frame img.on { opacity: 1; }
+#frame .pic { position: absolute; inset: 0; overflow: hidden; opacity: 0; transition: opacity 1.6s ease; }
+#frame .pic.on { opacity: 1; }
+#frame .pic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }      /* the whole photo, never cut off */
+#frame .pic .blur { object-fit: cover; filter: blur(12px) brightness(.6); transform: scale(1.25); }       /* behind it the same photo, zoomed in and blurred, fills the frame */
 #frame figcaption { position: absolute; left: 0; right: 0; bottom: 0; padding: 22px 10px 12px; font: 13px/1.25 var(--sans); color: #f1ede4;
   background: linear-gradient(transparent, rgba(4, 5, 12, .85)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #frame .bar { position: absolute; left: 0; bottom: 0; height: 6px; width: 0; background: var(--gold); z-index: 2; }      /* fills up until the next picture comes */
