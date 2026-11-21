@@ -229,6 +229,12 @@ for (const p of $$('.panel')) {
     head.addEventListener('pointerup', () => head.removeEventListener('pointermove', move), { once: true });
   });
 }
+// closing the moments while a form is open there counts as "Abbrechen", however it is closed (×, dock, Escape, another panel);
+// a form that is still saving stays, so that its outcome can be seen
+new MutationObserver(() => {
+  const p = panel('moments'), f = $('form', p);
+  if (p.hidden && f && !$('button.primary', f)?.disabled) renderMoments();
+}).observe(panel('moments'), { attributes: true, attributeFilter: ['hidden'] });
 function deselect() {
   if (!S.sel || J.on) return;
   S.sel = null; $('#yearcard').hidden = true; closePanel('detail'); renderDetail(); shareHash();
