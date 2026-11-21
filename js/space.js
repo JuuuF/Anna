@@ -179,6 +179,18 @@ export function drawSpace(ctx, W, H, S) {
     return pts;
   };
   const poly = pts => { ctx.moveTo(pts[0][0], pts[0][1]); for (const p of pts) ctx.lineTo(p[0], p[1]); ctx.closePath(); };
+  // a closed line in space, added to the current path as a shape on the screen; what lies behind the eye is cut off, so it stays right up close
+  const loop = pts => {
+    const near = E * 1e-3, out = [];
+    const at = pts.map(v => { const q = rot([v[0] - cam.c[0], v[1] - cam.c[1], v[2] - cam.c[2]]); return [q[0], q[1], q[2] + E]; });
+    at.forEach((a, i) => {
+      const b = at[(i + 1) % at.length];
+      if (a[2] >= near) out.push(a);
+      if ((a[2] >= near) !== (b[2] >= near)) out.push(a.map((v, k) => v + (b[k] - v) * (near - a[2]) / (b[2] - a[2])));
+    });
+    if (out.length > 2) poly(out.map(seenAt));
+    return out.length > 2;
+  };
   // the circle of a sphere that faces the viewer and contains the lifeline: every moment on the line lies exactly on its own circle
   const face = r => Array.from({ length: 145 }, (_, i) => { const a = i / 144 * 2 * Math.PI, c = r * Math.cos(a); return [c * cyaw, -c * syaw, r * Math.sin(a)]; });
   const facing = r => v => v[0] * eye[0] + v[1] * eye[1] + v[2] * eye[2] > r * r;     // on the side of a sphere the eye can see
@@ -306,9 +318,9 @@ export function drawSpace(ctx, W, H, S) {
     const d1 = (t - sel._t) / YEAR, d0 = Math.max(0, (t - (sel._e ?? sel._t)) / YEAR);
     if (d1 > 0) {
       ctx.fillStyle = catColor(sel.cat) + '26'; ctx.strokeStyle = catColor(sel.cat); ctx.lineWidth = 1.3;
-      if (sel._e && camDist > d1) {
-        const a = outline(d1), b = outline(d0);
-        if (a) { ctx.beginPath(); poly(a); if (b) poly(b); ctx.fill('evenodd'); }
+      if (sel._e) {                                      // the band between its two rings, tilted with them
+        ctx.beginPath();
+        if (loop(face(d1))) { if (d0 * sc > 0.5) loop(face(d0)); ctx.fill('evenodd'); }
       }
       ctx.setLineDash([5, 5]); path(face(d1)); ctx.stroke();
       if (sel._e && d0 * sc > 3) { path(face(d0)); ctx.stroke(); }
