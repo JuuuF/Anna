@@ -26,7 +26,7 @@ def call(method, **params):
         if m.get('id') == n:
             return m.get('result', m)
 call('Emulation.setDeviceMetricsOverride', width=w, height=h, deviceScaleFactor=1, mobile=w < 700)
-call('Page.navigate', url='http://127.0.0.1:8791/index.html' + hash_)
+call('Page.navigate', url=f'http://127.0.0.1:8791/index.html?t={time.time():.0f}' + hash_)
 time.sleep(wait)
 if script:
     call('Runtime.evaluate', expression=script)

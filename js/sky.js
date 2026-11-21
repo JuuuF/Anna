@@ -101,10 +101,12 @@ export function drawSky(ctx, W, H, S) {
   const dOut = (t - S.birth) / YEAR, dIn = Math.max(0, (t - S.death) / YEAR);
   const lst = lstDeg(when, NMS.lon), cx = W / 2, cy = H / 2;
 
-  // an ordinary (rectilinear) camera inside the celestial sphere: straight horizon, stars arching overhead
-  const base = H / 2 / Math.tan(35 * RAD);
+  // The picture is made the way planetarium programs make it (stereographic): shapes keep their proportions everywhere,
+  // also near the edges of a wide screen, where an ordinary camera picture pulls everything apart. The price is a horizon
+  // that is very slightly curved.
+  const base = H / 4 / Math.tan(17.5 * RAD);            // 70° from top to bottom at zoom 1
   skyCam.tzoom = Math.min(2.3, Math.max(0.62, skyCam.tzoom));
-  skyCam.min = Math.atan(Math.max(0, H / 2 - 172) / (base * skyCam.tzoom)) / RAD;
+  skyCam.min = 2 * Math.atan(Math.max(0, H / 2 - 172) / (2 * base * skyCam.tzoom)) / RAD;
   skyCam.talt = Math.min(89.9, Math.max(skyCam.min, skyCam.talt));
   skyCam.zoom += (skyCam.tzoom - skyCam.zoom) * 0.15;
   skyCam.alt += (skyCam.talt - skyCam.alt) * 0.15;
@@ -114,11 +116,11 @@ export function drawSky(ctx, W, H, S) {
   const f = [Math.cos(a0) * Math.sin(z0), Math.cos(a0) * Math.cos(z0), Math.sin(a0)];       // forward (east, north, up)
   const r = [Math.cos(z0), -Math.sin(z0), 0];
   const u = [-Math.sin(a0) * Math.sin(z0), -Math.sin(a0) * Math.cos(z0), Math.cos(a0)];
-  // perspective projection of a unit direction; only what lies in front of us
-  const Pd = (d, cut = 0.12) => {
+  // a unit direction -> screen; `cut` = how far to the side or behind us something may be
+  const Pd = (d, cut = -0.25) => {
     const zc = d[0] * f[0] + d[1] * f[1] + d[2] * f[2];
     if (zc < cut) return null;
-    const k = Sc / zc;
+    const k = 2 * Sc / (1 + zc);
     return [cx + (d[0] * r[0] + d[1] * r[1]) * k, cy - (d[0] * u[0] + d[1] * u[1] + d[2] * u[2]) * k, zc, 0, k];
   };
   const dir = (alt, az) => [Math.cos(alt * RAD) * Math.sin(az * RAD), Math.cos(alt * RAD) * Math.cos(az * RAD), Math.sin(alt * RAD)];
@@ -136,7 +138,7 @@ export function drawSky(ctx, W, H, S) {
   const moonGlow = moonAlt > 0 ? sm.lit * night * 0.5 : 0;
   const top = mix(mix([2, 4, 11], [16, 26, 48], moonGlow), [38, 100, 186], day);
   const low = mix(mix(mix([16, 26, 48], [30, 44, 74], moonGlow), [150, 196, 236], day), [226, 142, 96], dusk * 0.55);
-  const hy = Math.min(H * 3, cy + Sc * Math.tan(a0));                // where the horizon crosses the middle of the picture
+  const hy = Math.min(H * 3, cy + 2 * Sc * Math.tan(a0 / 2));        // where the horizon crosses the middle of the picture
   const sky = ctx.createLinearGradient(0, hy - 1.1 * H, 0, hy);
   sky.addColorStop(0, rgb(top)); sky.addColorStop(.6, rgb(mix(top, low, 0.3))); sky.addColorStop(1, rgb(low));
   ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
@@ -262,7 +264,7 @@ export function drawSky(ctx, W, H, S) {
   // clouds drift with the real wind
   const wx = weather.on ? weatherAt(when) : null;
   if (wx) {
-    const puff = day > 0.5 ? puffDay() : puffNight(), base0 = ctx.getTransform(), k0 = base0.a;
+    const puff = day > 0.5 ? puffDay() : puffNight();
     const sec = performance.now() / 1000, wd = (wx.dir + 180) * RAD, speed = wx.wind / 3600 * 3;      // km per second, a little faster than reality
     for (const [cover, h, cell, alpha, seed] of [[wx.high, 9, 2.6, 0.35, 900], [wx.low, 2, 0.6, 0.8, 0]]) {
       if (cover < 3) continue;
@@ -277,22 +279,15 @@ export function drawSky(ctx, W, H, S) {
         const p = Pd([x / dist, y / dist, h / dist]);
         if (!p) continue;
         const size = Math.min(p[4], 4 * Sc) * cell * (0.9 + (limit - v) * 2.5) / dist;
-        // towards the edges this kind of picture stretches everything away from the middle – the puffs have to stretch with it,
-        // otherwise gaps open up between them
-        const long = size * Math.min(2.2, 1 / p[2]);
-        if (p[0] < -long || p[0] > W + long || p[1] < -long || p[1] > H + long) continue;
-        if (p[2] > 0.86) { ctx.drawImage(puff, p[0] - size, p[1] - size, 2 * size, 2 * size); continue; }      // near the middle: round, and cheap to draw
-        const ang = Math.atan2(p[1] - cy, p[0] - cx), c = Math.cos(ang) * k0, s = Math.sin(ang) * k0;
-        ctx.setTransform(c, s, -s, c, p[0] * k0, p[1] * k0);
-        ctx.drawImage(puff, -long, -size, 2 * long, 2 * size);
-        ctx.setTransform(base0);
+        if (p[0] < -size || p[0] > W + size || p[1] < -size || p[1] > H + size) continue;
+        ctx.drawImage(puff, p[0] - size, p[1] - size, 2 * size, 2 * size);
       }
     }
-    ctx.setTransform(base0); ctx.globalAlpha = 1;
+    ctx.globalAlpha = 1;
   }
 
   // haze above the horizon, then a dark line of trees and fields
-  if (hy < H + 60) {
+  if (hy < H + 0.4 * W) {
     const haze = ctx.createLinearGradient(0, hy - 90, 0, hy), hz = mix([60, 85, 130], [215, 228, 242], day).join(',');
     haze.addColorStop(0, `rgba(${hz},0)`); haze.addColorStop(1, `rgba(${hz},.3)`);
     ctx.fillStyle = haze; ctx.fillRect(0, hy - 90, W, 90);
@@ -300,13 +295,12 @@ export function drawSky(ctx, W, H, S) {
     let lastX = -10;
     for (let d = -88; d <= 88; d += 0.5) {
       const az = skyCam.az + d, trees = 0.35 + 1.5 * smooth(az / 6, 3) + 0.9 * smooth(az / 1.1, 9) * smooth(az / 9, 5);
-      const p = P(trees, az, 0.03);
+      const p = P(trees, az, -0.1);
       if (!p) continue;
       ctx.lineTo(p[0], p[1]); lastX = p[0];
     }
     ctx.lineTo(Math.max(lastX, W + 10), H + 10); ctx.closePath();
     ctx.fillStyle = rgb(mix([3, 4, 10], [26, 38, 28], day)); ctx.fill();
-    ctx.fillRect(0, hy, W, H - hy + 1);
   }
   ctx.textAlign = 'center';
   ['N', 'NO', 'O', 'SO', 'S', 'SW', 'W', 'NW'].forEach((name, i) => {

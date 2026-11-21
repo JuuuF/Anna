@@ -502,18 +502,22 @@ function renderSoon() {
 
 // ---------- moments: list + form ----------
 let momentsTab = 'list', momentsFind = '', momentsSort = 'time';
+let momentsCat = '';                 // show only one theme ('' = all)
 let momentsRev = false;               // false: oldest event first / newest entry first; true: the other way round
 try { momentsSort = localStorage.getItem('annas-licht-sortierung') || 'time'; momentsRev = localStorage.getItem('annas-licht-umgekehrt') === '1'; } catch { /* ignore */ }
 function renderMoments() {
   const el = $('#p-moments .body'), can = store.canWrite();
   const withPhotos = S.items.filter(i => i.photos?.length), find = momentsFind.trim().toLowerCase();
-  const shown = S.items.filter(i => !find || (i.title + ' ' + (i.text || '') + ' ' + i.date.slice(0, 4)).toLowerCase().includes(find));
+  const themeOf = i => (CATS[i.cat] ? i.cat : 'sonst');
+  if (momentsCat && !CATS[momentsCat]) momentsCat = '';
+  const shown = S.items.filter(i => (!momentsCat || themeOf(i) === momentsCat) && (!find || (i.title + ' ' + (i.text || '') + ' ' + i.date.slice(0, 4)).toLowerCase().includes(find)));
   // in the order things happened, or the newest entries first
   if (momentsSort === 'added') shown.sort((a, b) => (b.updated || '').localeCompare(a.updated || '') || a._t - b._t);
   if (momentsRev) shown.reverse();
   const dirText = momentsSort === 'time' ? (momentsRev ? 'neueste zuerst' : 'älteste zuerst') : (momentsRev ? 'älteste Einträge zuerst' : 'neueste Einträge zuerst');
   const sorter = S.items.length > 3 ? `<div class="tabs" style="margin-top:4px"><span class="muted" style="font:13px var(--sans);align-self:center">Reihenfolge:</span>
     <button data-sort="time" class="${momentsSort === 'time' ? 'on' : ''}">wann es geschah</button><button data-sort="added" class="${momentsSort === 'added' ? 'on' : ''}">zuletzt hinzugefügt</button></div>
+    <label style="margin:-4px 0 10px">Thema<select id="catFilter"><option value="">Alle Themen (${S.items.length})</option>${Object.entries(CATS).map(([k, [n]]) => `<option value="${k}" ${k === momentsCat ? 'selected' : ''}>${esc(n)} (${S.items.filter(i => themeOf(i) === k).length})</option>`).join('')}</select></label>
     <p style="margin:-6px 0 8px"><button id="sortDir" style="padding:4px 10px;font-size:13px" title="Reihenfolge umkehren">${dirText} – umkehren</button></p>` : '';
   const tools = `${withPhotos.length ? `<div class="tabs"><button data-tab="list" class="${momentsTab === 'list' ? 'on' : ''}">Alle Momente</button><button data-tab="wall" class="${momentsTab === 'wall' ? 'on' : ''}">Fotos (${withPhotos.reduce((n, i) => n + i.photos.length, 0)})</button></div>` : ''}
     ${S.items.length > 6 && momentsTab === 'list' ? `<input type="text" id="find" placeholder="Suchen – z. B. Hochzeit oder 1998" value="${esc(momentsFind)}" style="margin-bottom:8px">` : ''}`;
@@ -527,12 +531,13 @@ function renderMoments() {
   momentsTab = 'list';
   el.innerHTML = (can ? '<p class="row"><button class="primary" id="add">Einen Moment hinzufügen</button><button id="addPhotos">Nur Fotos hinzufügen</button></p>'
     : '<p class="muted">Wer Anna kannte, kann hier eigene Erinnerungen hinzufügen – dafür bitte unten auf „Anmelden“ tippen.</p>')
-    + tools + sorter + `<ul class="list">${shown.map(i => `<li data-id="${i.id}"><span class="swatch ${i._e ? 'span' : ''}" style="background:${catColor(i.cat)}"></span>
+    + tools + sorter + (shown.length ? '' : '<p class="muted">Zu dieser Auswahl gibt es keine Momente.</p>') + `<ul class="list">${shown.map(i => `<li data-id="${i.id}"><span class="swatch ${i._e ? 'span' : ''}" style="background:${catColor(i.cat)}"></span>
       <div style="flex:1">${esc(i.title)} ${lock(i)}<small>${range(i)}${i.photos?.length ? ` · ${i.photos.length} Foto${i.photos.length > 1 ? 's' : ''}` : ''}</small></div>
       ${store.canEdit(i) ? `<button data-edit="${i.id}" style="padding:4px 10px;font-size:13px">Bearbeiten</button>` : ''}</li>`).join('')}</ul>`;
   $$('li[data-id]', el).forEach(li => li.onclick = () => select(S.items.find(i => i.id === li.dataset.id)));
   $$('[data-tab]', el).forEach(b => b.onclick = () => { momentsTab = b.dataset.tab; renderMoments(); });
   $$('[data-sort]', el).forEach(b => b.onclick = () => { momentsSort = b.dataset.sort; try { localStorage.setItem('annas-licht-sortierung', momentsSort); } catch { /* ignore */ } renderMoments(); });
+  if ($('#catFilter')) $('#catFilter').onchange = e => { momentsCat = e.target.value; renderMoments(); };
   if ($('#sortDir')) $('#sortDir').onclick = () => { momentsRev = !momentsRev; try { localStorage.setItem('annas-licht-umgekehrt', momentsRev ? '1' : ''); } catch { /* ignore */ } renderMoments(); };
   $$('[data-edit]', el).forEach(b => b.onclick = e => { e.stopPropagation(); editItem(S.items.find(i => i.id === b.dataset.edit)); });
   if ($('#find')) $('#find').oninput = e => { momentsFind = e.target.value; renderMoments(); const f = $('#find'); f.focus(); f.setSelectionRange(f.value.length, f.value.length); };
