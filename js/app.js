@@ -458,7 +458,7 @@ function renderDetail() {
 // ---------- arrivals ----------
 function arrivals() {
   const out = [];
-  for (const i of S.items) if (weight(i) >= 2) for (const s of S.stars) out.push({ i, s, at: i._t + s.d * YEAR, text: `${i._e ? 'Beginn: ' : ''}${i.title} erreicht ${s.n}` });
+  for (const i of S.items) if (!i.photoOnly) for (const s of S.stars) out.push({ i, s, at: i._t + s.d * YEAR, text: `${i._e ? 'Beginn: ' : ''}${i.title} erreicht ${s.n}` });
   return out;
 }
 function renderSoon() {
@@ -555,7 +555,7 @@ function editItem(item) {
     <p class="muted" data-end style="margin:-6px 0 0">„Bis wann“ leer lassen, wenn der Zeitraum bis zuletzt andauerte.</p>
     <label>Thema<select name="cat">${Object.entries(CATS).map(([k, [n]]) => `<option value="${k}" ${k === (CATS[i.cat] ? i.cat : 'sonst') ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label>
     <label>Wie wichtig ist dieser Moment? <span id="impWord" style="color:var(--text)"></span>
-      <input type="range" name="imp" min="1" max="5" step="1" value="${i.imp || 3}" style="accent-color:var(--gold)">
+      <input type="range" name="imp" min="1" max="5" step="1" value="${i.imp || 1}" style="accent-color:var(--gold)">
       <span style="display:flex;justify-content:space-between;font-size:12.5px"><span>eine Kleinigkeit</span><span>ein Lebensereignis</span></span></label>
     <label>Ein paar Worte dazu<textarea name="text" maxlength="4000" placeholder="Was möchtest du erzählen?">${esc(i.text)}</textarea></label>
     <label>Fotos hinzufügen – gern mehrere, auch nach und nach<input type="file" name="photos" accept="image/*" multiple></label>

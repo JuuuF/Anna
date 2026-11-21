@@ -23,7 +23,7 @@ export function applyCats(list) {
 }
 applyCats();
 // how much a moment matters, 1 (a small thing) … 5 (a life event); birth and last light always count fully
-export const weight = i => (i.fixed ? 5 : Math.min(5, Math.max(1, i.imp || 3)));
+export const weight = i => (i.fixed ? 5 : Math.min(5, Math.max(1, i.imp || 1)));
 export const WEIGHTS = ['eine Kleinigkeit', 'ein schöner Moment', 'wichtig', 'sehr wichtig', 'ein Lebensereignis'];
 export const catColor = c => (CATS[c] || CATS.sonst)[1];
 
