@@ -25,6 +25,8 @@ export const atHome = () => !cam.focus && Math.hypot(...cam.tc) < 1e-9;
 export const fit = (ly, W, H) => Math.min(W, H) * 0.4 / ly;
 export const clampScale = s => Math.min(1.2e10, Math.max(1.5, s));
 
+const MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+
 // distance rings on the reference plane
 const RINGS = [[LS, '1 Lichtsekunde'], [60 * LS, '1 Lichtminute'], [600 * LS, '10 Lichtminuten'], [3600 * LS, '1 Lichtstunde'],
   [36000 * LS, '10 Lichtstunden'], [86400 * LS, '1 Lichttag'], [7 * 86400 * LS, '1 Lichtwoche'], [1 / 12, '1 Lichtmonat'], [1, '1 Lichtjahr'], [5, '5 Lichtjahre']];
@@ -324,6 +326,53 @@ export function drawSpace(ctx, W, H, S) {
       ctx.beginPath(); ctx.moveTo(line[0][0], line[0][1]); ctx.lineTo(line[1][0], line[1][1]); ctx.stroke();
     }
   }
+  // spans of time run in lanes beside the line: a span takes the first lane that is free when it begins
+  const laneOf = new Map(), lanes = [];
+  for (const it of S.items) {
+    if (!it._e || it._t > t) continue;
+    let lane = lanes.findIndex(end => end <= it._t);
+    if (lane < 0) lane = lanes.length;
+    lanes[lane] = it._e; laneOf.set(it, lane);
+  }
+  // A scale along the line: decades, years, quarters, months and, very close up, days. Each kind of mark fades in
+  // once its marks are far enough apart on the screen, and gets its name a little later. Measured where each mark is,
+  // so the near end of a line seen in perspective can show months while the far end only shows years.
+  if (line) {
+    const STEP = [10, 5, 1, 1 / 4, 1 / 12, 10 / 365.25, 1 / 365.25], LEN = [5, 4.5, 4, 3.5, 3, 2.5, 2];     // years between two marks of a kind, half length
+    const last = Math.min(S.death, t), spans = [...laneOf].map(([it, lane]) => [it._t, it._e, lane]);
+    const mark = (T, level, text) => {
+      if (T <= S.birth || T > last) return;
+      const d = (t - T) / YEAR, p = proj(up(d)), q = proj(up(d + 1 / sc));
+      if (!p || !q || !onScreen(p)) return;
+      const dx = q[0] - p[0], dy = q[1] - p[1], l = Math.hypot(dx, dy), gap = l * sc * STEP[level];      // pixels to the next mark of this kind
+      if (gap < 5 || !l) return;
+      const nx = -dy / l * LEN[level], ny = dx / l * LEN[level];         // across the line
+      ctx.globalAlpha = Math.min(1, (gap - 5) / 12); ctx.lineWidth = level ? 1 : 1.5;
+      ctx.beginPath(); ctx.moveTo(p[0] - nx, p[1] - ny); ctx.lineTo(p[0] + nx, p[1] + ny); ctx.stroke();
+      if (gap < 30) return;
+      const beside = spans.reduce((n, s) => (s[0] <= T && T <= s[1] ? Math.max(n, s[2] + 1) : n), 0);       // to the right, past the spans running then
+      labels.push({ x: p[0] + 7 + 7 * beside, y: p[1] + 4, text, align: 'left', color: 'rgba(255,236,200,.85)', alpha: Math.min(1, (gap - 30) / 20),
+        font: `${level ? 400 : 600} 11px "Source Sans 3", system-ui, sans-serif`, prio: 27.5 - level / 2 });      // above most star names, below moments and spans
+    };
+    // a piece of the line between two times: is it in the picture, and is it longer than `px`?
+    const roomy = (T0, T1, px) => {
+      if (T1 <= S.birth || T0 > last) return false;
+      const s = seg(up((t - T0) / YEAR), up((t - T1) / YEAR));
+      return !!s && Math.max(s[0][0], s[1][0]) > 0 && Math.min(s[0][0], s[1][0]) < W && Math.max(s[0][1], s[1][1]) > 0 && Math.min(s[0][1], s[1][1]) < H &&
+        Math.hypot(s[1][0] - s[0][0], s[1][1] - s[0][1]) > px;
+    };
+    ctx.strokeStyle = 'rgb(255,236,200)';
+    for (let y = new Date(S.birth).getFullYear(); y <= new Date(last).getFullYear(); y++) {
+      mark(new Date(y, 0, 1).getTime(), y % 10 ? (y % 5 ? 2 : 1) : 0, String(y));
+      if (!roomy(new Date(y, 0, 1).getTime(), new Date(y + 1, 0, 1).getTime(), 15)) continue;      // the months only where there is room for them
+      for (let m = 0; m < 12; m++) {
+        const T = new Date(y, m, 1).getTime(), days = new Date(y, m + 1, 0).getDate();
+        if (m) mark(T, m % 3 ? 4 : 3, `${MONTHS[m]} ${y}`);
+        if (roomy(T, new Date(y, m + 1, 1).getTime(), 2 * days)) for (let day = 2; day <= days; day++) mark(new Date(y, m, day).getTime(), day % 10 ? 6 : 5, `${day}. ${MONTHS[m]} ${y}`);
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
   const sel = S.sel && S.sel._t ? S.sel : null;
   if (sel) {
     const d1 = (t - sel._t) / YEAR, d0 = Math.max(0, (t - (sel._e ?? sel._t)) / YEAR);
@@ -339,18 +388,14 @@ export function drawSpace(ctx, W, H, S) {
       ctx.globalAlpha = 0.5; path(circle(d1)); ctx.stroke(); ctx.globalAlpha = 1;
     }
   }
-  const lanes = [];
   for (const it of S.items) {
     if (it._t > t) continue;
     const d = (t - it._t) / YEAR, on = S.sel === it || S.hover === it, color = catColor(it.cat);
     if (it._e) {                                         // a span of time: a coloured band beside the lifeline
       const dEnd = Math.max(0, (t - it._e) / YEAR);
-      let lane = lanes.findIndex(end => end <= it._t);
-      if (lane < 0) lane = lanes.length;
-      lanes[lane] = it._e;
       const [a, b] = seg(up(d), up(dEnd)) || [];
       if (!a || Math.hypot(a[0] - b[0], a[1] - b[1]) < 3) continue;
-      const off = 7 + lane * 7;
+      const off = 7 + laneOf.get(it) * 7;
       ctx.strokeStyle = color; ctx.lineWidth = on ? 6 : 4; ctx.lineCap = 'round'; ctx.globalAlpha = on ? 1 : 0.8;
       ctx.beginPath(); ctx.moveTo(a[0] + off, a[1]); ctx.lineTo(b[0] + off, b[1]); ctx.stroke();
       ctx.globalAlpha = 1; ctx.lineCap = 'butt';
