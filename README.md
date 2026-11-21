@@ -20,7 +20,7 @@ Vor jeder Änderung an der Seite `sh tools/bump.sh` ausführen: Das gibt allen D
 Bildschirmfotos in vier Gerätegrößen: `sh tools/shots.sh <Ordner> <Name> '#demo'`.
 
 Lokal ansehen: `python3 -m http.server` und <http://localhost:8000> öffnen.
-Datenschicht testen: `node tools/test_store.mjs`.
+Datenschicht testen: `node tools/test_store.mjs`. Umriss der Lichtkugel in der 3D-Karte prüfen: `node tools/test_outline.mjs`.
 
 ## Ersteinrichtung
 

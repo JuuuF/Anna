@@ -32,6 +32,50 @@ const dust = Array.from({ length: 2600 }, (_, i) => {
   const r = n => Math.abs((Math.sin(i * 127.1 + n * 311.7) * 43758.5453) % 1);
   return [vec(r(1) * 360, Math.asin(2 * r(2) - 1) * 180 / Math.PI), 0.1 + 0.3 * r(3)];
 });
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const unit = a => { const l = Math.hypot(...a); return a.map(v => v / l); };
+
+// the colours of her light from the middle of the ball (0) to its rim (1)
+function glowColors(vis) {
+  const stops = [[0, 243, 201, 139, 0.2], [0.55, 240, 185, 150, 0.1], [0.9, 236, 172, 165, 0.1 + 0.07 * vis], [1, 233, 165, 173, 0.1 + 0.24 * vis]];
+  const lut = new Uint8ClampedArray(256 * 4);
+  for (let k = 0, s = 0; k < 256; k++) {
+    const t = k / 255;
+    while (t > stops[s + 1][0]) s++;
+    const [ta, ...a] = stops[s], [tb, ...b] = stops[s + 1], f = (t - ta) / (tb - ta);
+    for (let m = 0; m < 4; m++) lut[k * 4 + m] = (a[m] + (b[m] - a[m]) * f) * (m === 3 ? 255 : 1);
+  }
+  return lut;
+}
+// The glow of her light, brighter towards the rim. A canvas gradient can only draw circles, but a ball seen off-centre is an ellipse
+// on the screen, and from close by an open curve. So the colour is worked out from the angle between each line of sight and the
+// direction of the Earth, on a coarse grid that the browser smooths as it stretches it over the ball (the caller clips it to the outline).
+let glowCv = null, glowImg = null;
+function glow(ctx, pts, W, H, F, cx, cy, u, sOut, sIn, vis) {
+  let x0 = W, x1 = 0, y0 = H, y1 = 0;
+  for (const [x, y] of pts) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  x0 = Math.max(0, Math.floor(x0)); y0 = Math.max(0, Math.floor(y0)); x1 = Math.min(W, Math.ceil(x1)); y1 = Math.min(H, Math.ceil(y1));
+  if (x1 - x0 < 1 || y1 - y0 < 1) return;
+  const cell = Math.max(2, Math.max(x1 - x0, y1 - y0) / 160), gw = Math.ceil((x1 - x0) / cell), gh = Math.ceil((y1 - y0) / cell);
+  const cw = (x1 - x0) / gw, ch = (y1 - y0) / gh;
+  if (!glowCv) glowCv = document.createElement('canvas');
+  if (!glowImg || glowImg.width !== gw || glowImg.height !== gh) { glowCv.width = gw; glowCv.height = gh; glowImg = glowCv.getContext('2d').createImageData(gw, gh); }
+  const cosOut = Math.sqrt(1 - sOut * sOut), cosIn = Math.sqrt(1 - sIn * sIn), tanOut = sOut / cosOut, tanIn = sIn / cosIn;
+  const lut = glowColors(vis), px = glowImg.data;
+  for (let j = 0, n = 0; j < gh; j++) {
+    const y = -(y0 + (j + 0.5) * ch - cy) / F;
+    for (let i = 0; i < gw; i++, n += 4) {
+      const x = (x0 + (i + 0.5) * cw - cx) / F;
+      const c = (x * u[0] + y * u[1] + u[2]) / Math.sqrt(x * x + y * y + 1);       // cosine of the angle between this line of sight and the Earth
+      const t = c <= cosOut ? 1 : c >= cosIn ? 0 : (Math.sqrt(1 - c * c) / c - tanIn) / (tanOut - tanIn);
+      const k = Math.round(t * 255) * 4;
+      px[n] = lut[k]; px[n + 1] = lut[k + 1]; px[n + 2] = lut[k + 2]; px[n + 3] = lut[k + 3];
+    }
+  }
+  glowCv.getContext('2d').putImageData(glowImg, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(glowCv, 0, 0, gw, gh, x0, y0, x1 - x0, y1 - y0);
+}
 
 export function drawSpace(ctx, W, H, S) {
   const t = S.t, cx = W / 2, cy = S.cy ?? H / 2, hits = [], labels = [];
@@ -58,13 +102,13 @@ export function drawSpace(ctx, W, H, S) {
   const shade = p => Math.min(1, Math.max(0.28, (p[2] - 0.6) / 0.45));
   const grow = p => Math.min(2.2, Math.max(0.55, p[2]));
   const onScreen = p => p && p[0] > -40 && p[0] < W + 40 && p[1] > -40 && p[1] < H + 40;
-  // side: 0 = everything, -1 = only the half in front of depth d0, 1 = only the half behind it
-  const path = (pts, close, side = 0, d0 = 0) => {
+  // keep: optional test which points of the line to draw
+  const path = (pts, close, keep) => {
     ctx.beginPath();
     let pen = false;
     for (const v of pts) {
       const p = proj(v);
-      if (!p || (side < 0 && p[3] > d0) || (side > 0 && p[3] <= d0)) { pen = false; continue; }
+      if (!p || (keep && !keep(v))) { pen = false; continue; }
       pen ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]);
       pen = true;
     }
@@ -101,44 +145,74 @@ export function drawSpace(ctx, W, H, S) {
 
   // ---- the light of her lifetime ----
   const o = proj([0, 0, 0]);
-  const big = 80 * Math.max(W, H);
-  // how far the camera itself is from the Earth: once it is inside a sphere, that sphere has no outline any more
-  const rc = rot([-cam.c[0], -cam.c[1], -cam.c[2]]), camDist = Math.hypot(rc[0], rc[1], rc[2] + F / sc);
-  const sil = r => (r >= camDist ? big : Math.min(big, F * r / Math.sqrt(Math.max(1e-30, camDist * camDist - r * r))));    // outline radius on screen
+  // the eye itself (in light-years, Earth = 0): in front of the point it looks at, as far as the perspective asks for
+  const E = F / sc, eye = [cam.c[0] - E * syaw * cp, cam.c[1] - E * cyaw * cp, cam.c[2] + E * sp];
+  const camDist = Math.hypot(...eye);                  // how far the camera is from the Earth: once it is inside a sphere, that sphere has no outline any more
   const outside = r => Math.min(1, Math.max(0, (camDist / r - 1) / 0.4));      // 1 = seen from afar, 0 = the camera touches the sphere
+  // The outline of a sphere around the Earth as the eye really sees it: the circle where the lines of sight just touch the sphere.
+  // Seen straight on that is a circle around the Earth; off to the side it is an ellipse, and from close by part of it lies behind the eye.
+  // That part is replaced by a wide arc far outside the picture. Returns screen points, or null when the sphere is not in view.
+  const rc = rot([-cam.c[0], -cam.c[1], -cam.c[2]]), u = unit([rc[0], rc[1], rc[2] + E]);      // direction of the Earth from the eye: right, up, ahead
+  const pv = unit(cross(u, Math.abs(u[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0])), qv = cross(u, pv);
+  const Z = 0.2, FAR = F * Math.sqrt(1 - Z * Z) / Z;   // lines of sight more sideways than this are left out: they land far outside the picture
+  const seenAt = d => [cx + F * d[0] / d[2], cy - F * d[1] / d[2]];
+  const outline = r => {
+    if (!(r > 0) || r >= camDist) return null;
+    const s = r / camDist, c = Math.sqrt(1 - s * s), n = 180;
+    const dirs = Array.from({ length: n }, (_, i) => { const a = i / n * 2 * Math.PI, ca = s * Math.cos(a), sa = s * Math.sin(a); return [0, 1, 2].map(k => c * u[k] + ca * pv[k] + sa * qv[k]); });
+    const ahead = dirs.map(d => d[2] >= Z);
+    if (ahead.every(Boolean)) return dirs.map(seenAt);
+    if (!ahead.some(Boolean)) return u[2] >= c ? Object.assign([[-2, -2], [W + 2, -2], [W + 2, H + 2], [-2, H + 2]], { full: true }) : null;   // all around the view, or nowhere in it
+    const first = ahead.findIndex((a, i) => a && !ahead[(i + n - 1) % n]), pts = [];
+    let i = first;
+    while (ahead[i % n]) pts.push(seenAt(dirs[i++ % n]));
+    const cut = (a, b) => unit(a.map((v, k) => v + (b[k] - v) * (Z - a[2]) / (b[2] - a[2])));
+    const A = cut(dirs[(i - 1) % n], dirs[i % n]), B = cut(dirs[(first + n - 1) % n], dirs[first]);
+    // from where the outline leaves the view to where it comes back: round the outside of the picture, on the side that belongs to the sphere
+    const a0 = Math.atan2(A[1], A[0]), L = Math.sqrt(1 - Z * Z);
+    let span = ((Math.atan2(B[1], B[0]) - a0) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+    const mid = a0 + span / 2;
+    if (L * (Math.cos(mid) * u[0] + Math.sin(mid) * u[1]) + Z * u[2] < c) span -= 2 * Math.PI;
+    pts.push(seenAt(A));
+    for (let k = 0, m = Math.ceil(Math.abs(span) / 0.08); k <= m; k++) pts.push([cx + FAR * Math.cos(a0 + span * k / m), cy - FAR * Math.sin(a0 + span * k / m)]);
+    pts.push(seenAt(B));
+    return pts;
+  };
+  const poly = pts => { ctx.moveTo(pts[0][0], pts[0][1]); for (const p of pts) ctx.lineTo(p[0], p[1]); ctx.closePath(); };
   // the circle of a sphere that faces the viewer and contains the lifeline: every moment on the line lies exactly on its own circle
   const face = r => Array.from({ length: 145 }, (_, i) => { const a = i / 144 * 2 * Math.PI, c = r * Math.cos(a); return [c * cyaw, -c * syaw, r * Math.sin(a)]; });
-  const twoPass = (pts, color, back, front, width = 1) => {    // far half faint, near half clear
+  const facing = r => v => v[0] * eye[0] + v[1] * eye[1] + v[2] * eye[2] > r * r;     // on the side of a sphere the eye can see
+  const twoPass = (pts, r, color, back, front, width = 1) => {    // hidden half faint, visible half clear
+    const near = facing(r);
     ctx.strokeStyle = color; ctx.lineWidth = width;
-    ctx.globalAlpha = back; path(pts, false, 1, o ? o[3] : 0); ctx.stroke();
-    ctx.globalAlpha = front; path(pts, false, -1, o ? o[3] : 0); ctx.stroke();
+    ctx.globalAlpha = back; path(pts, false, v => !near(v)); ctx.stroke();
+    ctx.globalAlpha = front; path(pts, false, near); ctx.stroke();
     ctx.globalAlpha = 1;
   };
-  if (o && dOut > 0) {
-    const rOut = sil(dOut), rIn = Math.min(sil(dIn), rOut), vis = outside(dOut), visIn = outside(Math.max(dIn, 1e-12));
+  if (dOut > 0) {
+    const vis = outside(dOut), visIn = outside(Math.max(dIn, 1e-12));
     const ground = circle(dOut);
     if (vis > 0.02 && ground.every(proj)) { ctx.globalAlpha = vis; ctx.fillStyle = 'rgba(243,201,139,.055)'; path(ground, true); ctx.fill(); ctx.globalAlpha = 1; }   // the plane all stalks stand on
-    ctx.beginPath();
+    const hole = camDist > dIn ? outline(dIn) : null;  // the light that left after her death is not part of her life
     if (camDist > dOut) {                                // seen from outside: a glowing ball, brighter towards its rim
-      const g = ctx.createRadialGradient(o[0], o[1], rIn, o[0], o[1], Math.max(rOut, rIn + 1));
-      g.addColorStop(0, 'rgba(243,201,139,.20)'); g.addColorStop(.55, 'rgba(240,185,150,.10)');
-      g.addColorStop(.9, `rgba(236,172,165,${0.1 + 0.07 * vis})`); g.addColorStop(1, `rgba(233,165,173,${0.1 + 0.24 * vis})`);
-      ctx.fillStyle = g; ctx.arc(o[0], o[1], rOut, 0, 2 * Math.PI); ctx.closePath();
+      const out = outline(dOut);
+      if (out) {
+        ctx.save(); ctx.beginPath(); poly(out); if (hole) poly(hole); ctx.clip('evenodd');
+        glow(ctx, out, W, H, F, cx, cy, u, dOut / camDist, dIn / camDist, vis);
+        ctx.restore();
+        // the rim of the ball fades away as one comes close; the circle through the lifeline stays
+        if (vis > 0.02 && !out.full) { ctx.globalAlpha = vis * 0.45; ctx.lineWidth = 1; ctx.strokeStyle = 'rgb(243,201,139)'; ctx.beginPath(); poly(out); ctx.stroke(); ctx.globalAlpha = 1; }
+      }
     } else {                                             // inside her light: it is simply all around, with no edge
       const deep = Math.min(1, Math.max(0, (camDist / dOut - 0.6) / 0.4));
-      ctx.fillStyle = `rgba(242,196,146,${0.11 + 0.09 * deep})`; ctx.rect(-2, -2, W + 4, H + 4);
+      ctx.fillStyle = `rgba(242,196,146,${0.11 + 0.09 * deep})`;
+      ctx.beginPath(); ctx.rect(-2, -2, W + 4, H + 4); if (hole) poly(hole); ctx.fill('evenodd');
     }
-    if (camDist > dIn) {
-      if (rIn > 0.5) { ctx.moveTo(o[0] + rIn, o[1]); ctx.arc(o[0], o[1], rIn, 0, 2 * Math.PI); ctx.closePath(); }
-      ctx.fill('evenodd');
-    }
-    // the rim of the ball fades away as one comes close; the circle through the lifeline stays
-    if (vis > 0.02 && rOut < big) { ctx.globalAlpha = vis * 0.45; ctx.lineWidth = 1; ctx.strokeStyle = 'rgb(243,201,139)'; ctx.beginPath(); ctx.arc(o[0], o[1], rOut, 0, 2 * Math.PI); ctx.stroke(); ctx.globalAlpha = 1; }
     ctx.strokeStyle = 'rgba(243,201,139,.8)'; ctx.lineWidth = 1.5; path(face(dOut)); ctx.stroke();
     if (dIn * sc > 3) { ctx.strokeStyle = 'rgba(243,201,139,.55)'; ctx.lineWidth = 1.2; path(face(dIn)); ctx.stroke(); }
     // great circles make the sphere readable as a sphere
-    if (vis > 0.02) for (const plane of [0, 1, 2]) twoPass(circle(dOut, plane), 'rgb(243,201,139)', 0.07 * vis, (plane ? 0.3 : 0.45) * vis, plane ? 1 : 1.4);
-    if (dIn * sc > 30 && visIn > 0.02) for (const plane of [0, 1, 2]) twoPass(circle(dIn, plane), 'rgb(243,201,139)', 0.07 * visIn, 0.3 * visIn);
+    if (vis > 0.02) for (const plane of [0, 1, 2]) twoPass(circle(dOut, plane), dOut, 'rgb(243,201,139)', 0.07 * vis, (plane ? 0.3 : 0.45) * vis, plane ? 1 : 1.4);
+    if (dIn * sc > 30 && visIn > 0.02) for (const plane of [0, 1, 2]) twoPass(circle(dIn, plane), dIn, 'rgb(243,201,139)', 0.07 * visIn, 0.3 * visIn);
   }
 
   // ---- rings on the reference plane: distance = years ago ----
@@ -153,11 +227,12 @@ export function drawSpace(ctx, W, H, S) {
     const at = onScreen(q) ? q : p;
     if (onScreen(at)) labels.push({ x: at[0], y: at[1] + 14, text, color: 'rgba(169,164,184,.85)', font: '11px "Source Sans 3", system-ui, sans-serif', prio: 1 });
   }
-  const oort = 0.8 * sc;
-  if (o && oort > 60 && oort < 3 * Math.max(W, H) && sil(0.8) < big) {
+  const oort = 0.8 * sc, cloud = oort > 60 && oort < 3 * Math.max(W, H) ? outline(0.8) : null;
+  if (cloud && !cloud.full) {
     ctx.setLineDash([3, 6]); ctx.strokeStyle = 'rgba(160,190,230,.25)';
-    ctx.beginPath(); ctx.arc(o[0], o[1], sil(0.8), 0, 2 * Math.PI); ctx.stroke(); ctx.setLineDash([]);
-    labels.push({ x: o[0], y: o[1] - sil(0.8) - 6, text: 'Oortsche Wolke', color: 'rgba(160,190,230,.7)', font: '11px "Source Sans 3", system-ui, sans-serif', prio: 2 });
+    ctx.beginPath(); poly(cloud); ctx.stroke(); ctx.setLineDash([]);
+    const top = cloud.reduce((a, b) => (b[1] < a[1] ? b : a));
+    if (onScreen(top)) labels.push({ x: top[0], y: top[1] - 6, text: 'Oortsche Wolke', color: 'rgba(160,190,230,.7)', font: '11px "Source Sans 3", system-ui, sans-serif', prio: 2 });
   }
 
   // ---- solar system ----
@@ -227,13 +302,13 @@ export function drawSpace(ctx, W, H, S) {
     ctx.strokeStyle = 'rgba(255,236,200,.95)'; ctx.lineWidth = 2; path([up(dIn), up(dOut)]); ctx.stroke();
   }
   const sel = S.sel && S.sel._t ? S.sel : null;
-  if (sel && o) {
+  if (sel) {
     const d1 = (t - sel._t) / YEAR, d0 = Math.max(0, (t - (sel._e ?? sel._t)) / YEAR);
     if (d1 > 0) {
       ctx.fillStyle = catColor(sel.cat) + '26'; ctx.strokeStyle = catColor(sel.cat); ctx.lineWidth = 1.3;
       if (sel._e && camDist > d1) {
-        ctx.beginPath(); ctx.arc(o[0], o[1], sil(d1), 0, 2 * Math.PI); ctx.closePath();
-        ctx.moveTo(o[0] + sil(d0), o[1]); ctx.arc(o[0], o[1], sil(d0), 0, 2 * Math.PI); ctx.closePath(); ctx.fill('evenodd');
+        const a = outline(d1), b = outline(d0);
+        if (a) { ctx.beginPath(); poly(a); if (b) poly(b); ctx.fill('evenodd'); }
       }
       ctx.setLineDash([5, 5]); path(face(d1)); ctx.stroke();
       if (sel._e && d0 * sc > 3) { path(face(d0)); ctx.stroke(); }
