@@ -88,8 +88,9 @@ function goHome() { cam.focus = null; cam.tc = [0, 0, 0]; cam.touched = performa
 const pointers = new Map();
 let moved = 0, pinch = 0, mid = null;
 cv.addEventListener('contextmenu', e => e.preventDefault());
-cv.addEventListener('pointerdown', e => { if (J.on && !J.paused && !J.list[J.i].end) { J.paused = true; showStation(); }   // touching the map pauses the journey
-  cv.setPointerCapture(e.pointerId); pointers.set(e.pointerId, [e.clientX, e.clientY]); moved = 0; pinch = 0; mid = null; cam.touched = performance.now(); });
+cv.addEventListener('pointerdown', e => { if (J.on && !J.paused) { clearTimeout(J.timer); J.held = true; $('#journey').classList.add('paused'); }   // while someone looks around, the journey waits
+  try { cv.setPointerCapture(e.pointerId); } catch { /* some browsers refuse for synthetic or stale pointers */ }
+  pointers.set(e.pointerId, [e.clientX, e.clientY]); moved = 0; pinch = 0; mid = null; cam.touched = performance.now(); });
 cv.addEventListener('pointermove', e => {
   const prev = pointers.get(e.pointerId);
   if (!prev) { S.hover = pick(e.clientX, e.clientY); cv.classList.toggle('point', !!S.hover); return; }
@@ -119,11 +120,13 @@ const release = e => {
     if (o) select(o); else deselect();           // a tap on empty sky lets go of whatever was selected
   }
   pinch = 0; mid = null;
+  if (J.on && J.held && !pointers.size) { J.held = false; arm(); }      // let go: the station gets its full time again, then the journey moves on
 };
 cv.addEventListener('pointerup', release); cv.addEventListener('pointercancel', release);
 cv.addEventListener('pointerleave', () => { S.hover = null; });
 cv.addEventListener('wheel', e => {
   e.preventDefault(); cam.ease = 0.12;
+  if (J.on && !J.paused) arm();
   if (S.view === 'space') { cam.target = clampScale(cam.target * Math.exp(-e.deltaY * 0.0016)); cam.touched = performance.now(); }
   else skyCam.tzoom *= Math.exp(-e.deltaY * 0.0012);
 }, { passive: false });
@@ -298,7 +301,22 @@ function stopJourney() {
   clearTimeout(J.timer); J.on = false;
   document.body.classList.remove('journey'); $('#journey').hidden = true; $('#play').textContent = 'Ihr Leben erleben';
 }
+// starts (or restarts) the clock of the station on show
+function arm() {
+  clearTimeout(J.timer);
+  const el = $('#journey'), bar = $('.bar', el);
+  el.classList.toggle('paused', J.paused);
+  if (bar) bar.innerHTML = J.secs ? `<i style="animation-duration:${J.secs}s"></i>` : '';
+  if (J.on && J.secs && !J.paused) J.timer = setTimeout(() => { J.i++; showStation(); }, J.secs * 1000);
+}
+// one moment that cannot be shown must not end the journey: it is skipped
 function showStation() {
+  try { drawStation(); } catch (e) {
+    console.error(e);
+    if (J.i < J.list.length - 1) { J.i++; showStation(); } else stopJourney();
+  }
+}
+function drawStation() {
   clearTimeout(J.timer);
   const o = J.list[J.i], el = $('#journey'), n = J.list.length;
   let h, secs;
@@ -336,7 +354,7 @@ function showStation() {
     else if (a === 'pause') { J.paused = !J.paused; showStation(); }
     else if (a === 'more') { stopJourney(); select(o); }
   });
-  if (secs && !J.paused) J.timer = setTimeout(() => { J.i++; showStation(); }, secs * 1000);
+  J.secs = secs; J.held = false; arm();
 }
 $('#play').onclick = () => (J.on ? stopJourney() : startJourney());
 addEventListener('keydown', e => {

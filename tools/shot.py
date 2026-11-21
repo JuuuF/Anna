@@ -30,7 +30,7 @@ call('Page.navigate', url=f'http://127.0.0.1:8791/index.html?t={time.time():.0f}
 time.sleep(wait)
 if script:
     call('Runtime.evaluate', expression=script)
-    time.sleep(2.5)
+    time.sleep(float(sys.argv[7]) if len(sys.argv) > 7 else 2.5)
 png = call('Page.captureScreenshot', format='png')['data']
 open(out, 'wb').write(base64.b64decode(png))
 print(call('Runtime.evaluate', expression='document.title')['result'].get('value'))
