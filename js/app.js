@@ -502,15 +502,19 @@ function renderSoon() {
 
 // ---------- moments: list + form ----------
 let momentsTab = 'list', momentsFind = '', momentsSort = 'time';
-try { momentsSort = localStorage.getItem('annas-licht-sortierung') || 'time'; } catch { /* ignore */ }
+let momentsRev = false;               // false: oldest event first / newest entry first; true: the other way round
+try { momentsSort = localStorage.getItem('annas-licht-sortierung') || 'time'; momentsRev = localStorage.getItem('annas-licht-umgekehrt') === '1'; } catch { /* ignore */ }
 function renderMoments() {
   const el = $('#p-moments .body'), can = store.canWrite();
   const withPhotos = S.items.filter(i => i.photos?.length), find = momentsFind.trim().toLowerCase();
   const shown = S.items.filter(i => !find || (i.title + ' ' + (i.text || '') + ' ' + i.date.slice(0, 4)).toLowerCase().includes(find));
   // in the order things happened, or the newest entries first
   if (momentsSort === 'added') shown.sort((a, b) => (b.updated || '').localeCompare(a.updated || '') || a._t - b._t);
+  if (momentsRev) shown.reverse();
+  const dirText = momentsSort === 'time' ? (momentsRev ? 'neueste zuerst' : 'älteste zuerst') : (momentsRev ? 'älteste Einträge zuerst' : 'neueste Einträge zuerst');
   const sorter = S.items.length > 3 ? `<div class="tabs" style="margin-top:4px"><span class="muted" style="font:13px var(--sans);align-self:center">Reihenfolge:</span>
-    <button data-sort="time" class="${momentsSort === 'time' ? 'on' : ''}">wann es geschah</button><button data-sort="added" class="${momentsSort === 'added' ? 'on' : ''}">zuletzt hinzugefügt</button></div>` : '';
+    <button data-sort="time" class="${momentsSort === 'time' ? 'on' : ''}">wann es geschah</button><button data-sort="added" class="${momentsSort === 'added' ? 'on' : ''}">zuletzt hinzugefügt</button></div>
+    <p style="margin:-6px 0 8px"><button id="sortDir" style="padding:4px 10px;font-size:13px" title="Reihenfolge umkehren">${dirText} – umkehren</button></p>` : '';
   const tools = `${withPhotos.length ? `<div class="tabs"><button data-tab="list" class="${momentsTab === 'list' ? 'on' : ''}">Alle Momente</button><button data-tab="wall" class="${momentsTab === 'wall' ? 'on' : ''}">Fotos (${withPhotos.reduce((n, i) => n + i.photos.length, 0)})</button></div>` : ''}
     ${S.items.length > 6 && momentsTab === 'list' ? `<input type="text" id="find" placeholder="Suchen – z. B. Hochzeit oder 1998" value="${esc(momentsFind)}" style="margin-bottom:8px">` : ''}`;
   if (momentsTab === 'wall' && withPhotos.length) {
@@ -529,6 +533,7 @@ function renderMoments() {
   $$('li[data-id]', el).forEach(li => li.onclick = () => select(S.items.find(i => i.id === li.dataset.id)));
   $$('[data-tab]', el).forEach(b => b.onclick = () => { momentsTab = b.dataset.tab; renderMoments(); });
   $$('[data-sort]', el).forEach(b => b.onclick = () => { momentsSort = b.dataset.sort; try { localStorage.setItem('annas-licht-sortierung', momentsSort); } catch { /* ignore */ } renderMoments(); });
+  if ($('#sortDir')) $('#sortDir').onclick = () => { momentsRev = !momentsRev; try { localStorage.setItem('annas-licht-umgekehrt', momentsRev ? '1' : ''); } catch { /* ignore */ } renderMoments(); };
   $$('[data-edit]', el).forEach(b => b.onclick = e => { e.stopPropagation(); editItem(S.items.find(i => i.id === b.dataset.edit)); });
   if ($('#find')) $('#find').oninput = e => { momentsFind = e.target.value; renderMoments(); const f = $('#find'); f.focus(); f.setSelectionRange(f.value.length, f.value.length); };
   if (can) { $('#add').onclick = () => editItem(null); $('#addPhotos').onclick = addPhotos; }
