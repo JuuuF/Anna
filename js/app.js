@@ -267,6 +267,7 @@ async function nextPicture() {
 }
 // called whenever the moments change (also after logging in or out)
 function fillFrame() {
+  pics.death = S.death;
   const pool = S.items.flatMap(i => (i.photos || []).map(path => ({ path, item: i })));
   const key = pool.map(p => p.path).join('|');
   if (key === pics.key) { for (const p of pics.pool) p.item = S.items.find(i => i.id === p.item.id) || p.item; return; }

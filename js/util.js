@@ -27,10 +27,12 @@ export const weight = i => (i.fixed ? 5 : Math.min(5, Math.max(1, i.imp || 1)));
 export const WEIGHTS = ['eine Kleinigkeit', 'ein schöner Moment', 'wichtig', 'sehr wichtig', 'ein Lebensereignis'];
 // Which photo should the picture frame show next? By chance, but photos of important moments come up more often.
 // A moment with very many photos does not crowd out the others, and the last few photos shown are left out,
-// so that nothing repeats too soon.  state = { pool: [{ path, item }], recent: [] }
+// so that nothing repeats too soon. Whatever happened after her last light (the funeral, for one) counts as a small moment here,
+// however important it is marked.  state = { pool: [{ path, item }], recent: [], death: ms }
 export function pickPicture(state) {
   const recent = state.recent || (state.recent = []), open = state.pool.filter(p => !recent.includes(p.path));
-  const from = open.length ? open : state.pool, chance = p => weight(p.item) / Math.sqrt(p.item.photos?.length || 1);
+  const from = open.length ? open : state.pool;
+  const chance = p => (state.death && p.item._t > state.death ? 1 : weight(p.item)) / Math.sqrt(p.item.photos?.length || 1);
   let r = Math.random() * from.reduce((sum, p) => sum + chance(p), 0), pic = from[from.length - 1];
   for (const p of from) { r -= chance(p); if (r <= 0) { pic = p; break; } }
   recent.push(pic.path);
