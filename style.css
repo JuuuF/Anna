@@ -122,6 +122,12 @@ body.journey #hint, body.journey #yearcard, body.journey #zoom { display: none !
 #frame::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 6px; background: rgba(0, 0, 0, .6); z-index: 1; }      /* its track */
 #frame .x { position: absolute; top: 0; right: 0; padding: 0 8px 4px; font-size: 22px; color: #fff; text-shadow: 0 0 6px #000; opacity: 0; transition: opacity .2s; }
 #frame:hover .x, #frame:focus-within .x { opacity: 1; }
+#frame .nav { position: absolute; top: 50%; transform: translateY(-50%); border: 0; background: none; padding: 14px 9px; font: 300 30px/1 var(--sans);
+  color: #fff; text-shadow: 0 0 6px #000, 0 0 2px #000; opacity: 0; transition: opacity .2s; z-index: 3; }
+#frame .prev { left: 0; }
+#frame .next { right: 0; }
+#frame:hover .nav, #frame:focus-within .nav { opacity: .9; }
+#frame.first .prev { visibility: hidden; }      /* nothing older kept */
 body.journey #frame, body.leftopen #frame { display: none; }
 
 /* ---- panels ---- */
@@ -224,6 +230,7 @@ textarea { resize: vertical; min-height: 84px; font: 17px/1.45 var(--serif); }
   #frame { left: 8px; width: 112px; bottom: calc(var(--bottom) + 10px); }
   #frame figcaption { font-size: 11px; padding: 14px 6px 9px; }
   #frame .x { opacity: 1; font-size: 18px; }
+  #frame .nav { opacity: .9; font-size: 22px; padding: 10px 5px; }
   #journey { max-height: 48vh; }
   #journey .jbody { flex-direction: column; gap: 8px; padding: 12px 16px 4px; }
   #journey figure { flex: none; max-width: none; }

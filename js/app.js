@@ -243,44 +243,76 @@ async function shareLink(title) {
 }
 
 // ---------- the picture frame: the photos of all moments, in random order, one after another ----------
-const pics = { el: $('#frame'), pool: [], n: 0, timer: 0, key: '', off: false, now: null };
+// seen: the last pictures shown, at: the one on show. Going back steps through them; going on steps forward again and,
+// at the newest, picks a new one. While the mouse rests on the frame, the picture stays (held).
+const pics = { el: $('#frame'), pool: [], timer: 0, key: '', off: false, now: null, seen: [], at: -1, due: 0, left: 0, held: false, token: 0 };
 function photoUrl(path) {
   if (!urls.has(path)) urls.set(path, store.photoBytes(path).then(b => URL.createObjectURL(new Blob([b], { type: 'image/jpeg' }))));
   return urls.get(path);
 }
-const PICTURE_SECONDS = 16;
+const PICTURE_SECONDS = 16, KEEP_SEEN = 12;
+// -> false if the photo cannot be loaded
+async function showPicture(pic) {
+  clearTimeout(pics.timer);
+  const token = ++pics.token;                            // a slow photo must not take the place of one asked for after it
+  const [a, b] = $$('.pic', pics.el), show = a.classList.contains('on') ? b : a, hide = show === a ? b : a;
+  try {
+    const url = await photoUrl(pic.path), imgs = $$('img', show);
+    if (token !== pics.token) return true;
+    for (const img of imgs) img.src = url;
+    await Promise.all(imgs.map(img => img.decode?.().catch(() => {})));
+    if (token !== pics.token) return true;
+    show.classList.add('on'); hide.classList.remove('on');
+    pics.now = pic.item; pics.el.hidden = false;
+    pics.el.classList.toggle('first', pics.at <= 0);
+    $('figcaption', pics.el).textContent = `${pic.item.title === 'Fotos' ? '' : pic.item.title + ', '}${pic.item.date.slice(0, 4)}`;
+  } catch { return false; }
+  const bar = $('.bar', pics.el);                        // the line at the bottom shows how long this picture stays
+  bar.style.animation = 'none'; void bar.offsetWidth; bar.style.animation = `fill ${PICTURE_SECONDS}s linear forwards`;
+  pics.left = PICTURE_SECONDS * 1000;
+  if (pics.held) bar.style.animationPlayState = 'paused';
+  else { pics.due = Date.now() + pics.left; pics.timer = setTimeout(nextPicture, pics.left); }
+  return true;
+}
 async function nextPicture() {
   clearTimeout(pics.timer);
   if (pics.off || !pics.pool.length) { pics.el.hidden = true; return; }
-  const pic = pickPicture(pics), [a, b] = $$('.pic', pics.el), show = a.classList.contains('on') ? b : a, hide = show === a ? b : a;
-  try {
-    const url = await photoUrl(pic.path), imgs = $$('img', show);
-    for (const img of imgs) img.src = url;
-    await Promise.all(imgs.map(img => img.decode?.().catch(() => {})));
-    show.classList.add('on'); hide.classList.remove('on');
-    pics.now = pic.item; pics.el.hidden = false;
-    $('figcaption', pics.el).textContent = `${pic.item.title === 'Fotos' ? '' : pic.item.title + ', '}${pic.item.date.slice(0, 4)}`;
-    pics.fails = 0;
-  } catch {                                              // a photo that cannot be loaded (yet): go straight to the next one
-    pics.fails = (pics.fails || 0) + 1;
-    pics.timer = setTimeout(nextPicture, pics.fails >= pics.pool.length ? 60000 : 600);
-    return;
-  }
-  const bar = $('.bar', pics.el);                        // the line at the bottom shows how long this picture stays
-  bar.style.animation = 'none'; void bar.offsetWidth; bar.style.animation = `fill ${PICTURE_SECONDS}s linear forwards`;
-  pics.timer = setTimeout(nextPicture, PICTURE_SECONDS * 1000);
+  if (pics.at < pics.seen.length - 1) pics.at++;         // after going back: forward again through what was shown
+  else { pics.seen = [...pics.seen, pickPicture(pics)].slice(-KEEP_SEEN); pics.at = pics.seen.length - 1; }
+  if (await showPicture(pics.seen[pics.at])) { pics.fails = 0; return; }
+  pics.seen.splice(pics.at--, 1);                        // a photo that cannot be loaded (yet): forget it and go straight on
+  pics.fails = (pics.fails || 0) + 1;
+  pics.timer = setTimeout(nextPicture, pics.fails >= pics.pool.length ? 60000 : 600);
 }
+function prevPicture() {
+  if (pics.at > 0) showPicture(pics.seen[--pics.at]);
+}
+// the mouse on the frame holds the picture; the bar stops with it and goes on from there
+function holdPicture(on) {
+  if (on === pics.held) return;
+  pics.held = on;
+  const bar = $('.bar', pics.el);
+  clearTimeout(pics.timer);
+  if (on) pics.left = Math.max(0, pics.due - Date.now());
+  else if (!pics.off && pics.pool.length) { pics.due = Date.now() + pics.left; pics.timer = setTimeout(nextPicture, pics.left); }
+  bar.style.animationPlayState = on ? 'paused' : 'running';
+}
+pics.el.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') holdPicture(true); });
+pics.el.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') holdPicture(false); });
+setInterval(() => { if (pics.held && !pics.el.matches(':hover')) holdPicture(false); }, 1500);   // the frame may vanish under the mouse without a "leave"
 // called whenever the moments change (also after logging in or out)
 function fillFrame() {
   pics.death = S.death;
   const pool = S.items.flatMap(i => (i.photos || []).map(path => ({ path, item: i })));
   const key = pool.map(p => p.path).join('|');
   if (key === pics.key) { for (const p of pics.pool) p.item = S.items.find(i => i.id === p.item.id) || p.item; return; }
-  Object.assign(pics, { pool, key, recent: [] });
+  Object.assign(pics, { pool, key, recent: [], seen: [], at: -1 });
   nextPicture();
 }
 pics.el.onclick = e => {
   if (e.target.closest('.x')) { pics.off = true; pics.el.hidden = true; clearTimeout(pics.timer); return; }
+  if (e.target.closest('.prev')) return prevPicture();
+  if (e.target.closest('.next')) return nextPicture();
   if (pics.now) select(S.items.find(i => i.id === pics.now.id) || pics.now);
 };
 
