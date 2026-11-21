@@ -1,5 +1,5 @@
 // Interface: canvas interaction, floating panels, moments, accounts.
-import { YEAR, AU, LS, CATS, catColor, parseWhen, esc, num, fmtDate, fmtWhen, dur, fmtDist, readDate, readTime, showDate, dateInput, timeInput, weight, WEIGHTS } from './util.js';
+import { YEAR, AU, LS, CATS, applyCats, catColor, parseWhen, esc, num, fmtDate, fmtWhen, dur, fmtDist, readDate, readTime, showDate, dateInput, timeInput, weight, WEIGHTS } from './util.js';
 import { photoTime } from './phototime.js';
 import { vec, bodies, updateBodies, sunAltitude } from './astro.js';
 import * as store from './store.js';
@@ -17,6 +17,7 @@ const PROBE = location.hash.includes('messen');
 // ---------- model ----------
 function rebuild() {
   const p = store.state.person;
+  applyCats(store.state.cats);
   S.birth = parseWhen(p.birth); S.death = parseWhen(p.death);
   const fixed = [
     { id: 'birth', title: 'Geburt', date: p.birth, cat: 'freude', text: 'Ihr erstes Licht.', fixed: true, vis: 'public' },
@@ -552,7 +553,7 @@ function editItem(item) {
     <div class="two" data-end><label>Bis wann?${dateInput('end', d1)}</label>
       <label>Uhrzeit (wenn bekannt)${timeInput('endtime', t1)}</label></div>
     <p class="muted" data-end style="margin:-6px 0 0">„Bis wann“ leer lassen, wenn der Zeitraum bis zuletzt andauerte.</p>
-    <label>Thema<select name="cat">${Object.entries(CATS).map(([k, [n]]) => `<option value="${k}" ${k === i.cat ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+    <label>Thema<select name="cat">${Object.entries(CATS).map(([k, [n]]) => `<option value="${k}" ${k === (CATS[i.cat] ? i.cat : 'sonst') ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label>
     <label>Wie wichtig ist dieser Moment? <span id="impWord" style="color:var(--text)"></span>
       <input type="range" name="imp" min="1" max="5" step="1" value="${i.imp || 3}" style="accent-color:var(--gold)">
       <span style="display:flex;justify-content:space-between;font-size:12.5px"><span>eine Kleinigkeit</span><span>ein Lebensereignis</span></span></label>
@@ -744,6 +745,11 @@ function renderLogin() {
         <label>Passwort<input type="text" name="pass" required minlength="8" autocomplete="off"></label>
         <label>Darf …<select name="role"><option value="editor">Erinnerungen ansehen und hinzufügen</option><option value="viewer">Erinnerungen nur ansehen</option><option value="admin">alles verwalten</option></select></label>
         <p class="status"></p><button class="primary">Zugang anlegen</button></form>
+      <form id="cats"><h3>Themen der Momente</h3>
+        <p class="muted" style="margin-top:0">Name und Farbe ändern, neue Themen anlegen oder nicht gebrauchte entfernen.</p>
+        <div id="catrows"></div>
+        <p class="status"></p>
+        <div class="row"><button type="button" id="catAdd">Thema hinzufügen</button><button class="primary">Themen speichern</button></div></form>
       <form id="person"><h3>Grunddaten</h3>
         ${p.placeholder ? '<p class="status err">Hier stehen noch Platzhalter – bitte die echten Daten eintragen.</p>' : ''}
         <div class="two"><label>Geboren am${dateInput('bd', bd, true)}</label><label>Uhrzeit${timeInput('bt', bt)}</label></div>
@@ -756,6 +762,26 @@ function renderLogin() {
   if (s.role !== 'admin') return;
   $$('[data-rm]', el).forEach(b => b.onclick = () => confirm('Diesen Zugang wirklich entfernen?') && act($('#newUser .status'), 'Wird entfernt …', () => store.removeUser(b.dataset.rm)));
   $('#newUser').onsubmit = e => { e.preventDefault(); const f = e.target; act($('.status', f), 'Wird angelegt …', () => store.addUser(f.name.value, f.pass.value, f.role.value)); };
+  // themes: a working copy that is only written when "Themen speichern" is pressed
+  const cats = Object.entries(CATS).map(([id, [name, color]]) => ({ id, name, color }));
+  const used = id => S.items.filter(i => (CATS[i.cat] ? i.cat : 'sonst') === id).length;
+  const drawCats = () => {
+    $('#catrows').innerHTML = cats.map((c, n) => `<div class="catrow"><input type="color" data-n="${n}" value="${esc(c.color)}" aria-label="Farbe">
+      <input type="text" data-n="${n}" value="${esc(c.name)}" maxlength="40" required aria-label="Name des Themas">
+      ${c.id === 'sonst' ? '<span class="muted" style="font-size:12.5px">bleibt immer</span>' : `<button type="button" class="danger" data-n="${n}" title="${used(c.id) ? `${used(c.id)} Momente wechseln dann zu „Sonstiges“` : 'Wird nicht verwendet'}">Entfernen</button>`}</div>`).join('');
+    $$('#catrows input', el).forEach(i => i.oninput = () => { cats[+i.dataset.n][i.type === 'color' ? 'color' : 'name'] = i.value; });
+    $$('#catrows button', el).forEach(b => b.onclick = () => {
+      const c = cats[+b.dataset.n], n = used(c.id);
+      if (n && !confirm(`„${c.name}“ wird von ${n} ${n === 1 ? 'Moment' : 'Momenten'} verwendet. Diese gehören danach zu „Sonstiges“. Trotzdem entfernen?`)) return;
+      cats.splice(+b.dataset.n, 1); drawCats();
+    });
+  };
+  drawCats();
+  $('#catAdd').onclick = () => { cats.push({ id: 't' + Math.random().toString(36).slice(2, 8), name: '', color: '#b9c7a0' }); drawCats(); $$('#catrows input[type=text]', el).pop().focus(); };
+  $('#cats').onsubmit = e => {
+    e.preventDefault();
+    act($('#cats .status'), 'Wird gespeichert …', () => store.setCats(cats.map(c => ({ id: c.id, name: c.name.trim(), color: c.color }))));
+  };
   $('#person').onsubmit = e => {
     e.preventDefault(); const f = e.target, j = (d, t) => (t ? `${d}T${t}` : d), st2 = $('.status', f);
     const b = readDate(f.bd.value), d = readDate(f.dd.value), bt2 = readTime(f.bt.value), dt2 = readTime(f.dt.value);

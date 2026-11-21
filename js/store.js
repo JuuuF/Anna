@@ -24,6 +24,7 @@ export const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 export const state = {
   person: { name: 'Anna', birth: '1970-05-02', death: '2026-09-15' },
   items: [], accounts: [], users: { salt: '', users: [] }, session: null,
+  cats: null,           // the family's own list of themes, or null for the starting set
 };
 let contentKey = null;
 const photoCache = new Map();
@@ -92,6 +93,7 @@ export async function load(fresh = false) {
   const users = await readJson('data/users.json', fresh);
   if (users) state.users = users;
   if (pub?.person) state.person = pub.person;
+  if (pub) state.cats = pub.cats || null;
   let items = (pub?.items || []).map(i => ({ ...i, vis: 'public' }));
   state.accounts = [];
   if (contentKey) {
@@ -113,7 +115,7 @@ async function persist(mutate, files = [], withUsers = false) {
     await load(true);
     mutate();
     const out = [...files,
-      { path: 'data/public.json', bytes: te.encode(JSON.stringify({ person: state.person, items: strip('public') }, null, 1)) },
+      { path: 'data/public.json', bytes: te.encode(JSON.stringify({ person: state.person, ...(state.cats ? { cats: state.cats } : {}), items: strip('public') }, null, 1)) },
       { path: 'data/private.enc', bytes: await seal(contentKey, te.encode(JSON.stringify({ items: strip('private'), accounts: state.accounts }))) }];
     if (withUsers) out.push({ path: 'data/users.json', bytes: te.encode(JSON.stringify(state.users)) });
     try { return await commit(out); } catch (e) { if (n >= 2 || e.status !== 422) throw e; }
@@ -179,6 +181,7 @@ export const removeUser = id => persist(() => {
   state.accounts = state.accounts.filter(a => a.id !== id);
 }, [], true);
 export const setPerson = person => persist(() => { state.person = person; });
+export const setCats = cats => persist(() => { state.cats = cats; });
 
 // ---------- moments ----------
 export const canWrite = () => !!state.session?.token;

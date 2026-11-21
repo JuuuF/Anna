@@ -39,6 +39,8 @@ assert.ok(!Buffer.from(files.get('data/private.enc')).includes('Geheimer'), 'pri
 assert.ok(!Buffer.from(files.get(priv.photos[0])).includes(Buffer.from(jpg)), 'private photo must be ciphertext');
 assert.ok(!text('data/users.json').includes('TOKEN') && !text('data/users.json').includes('Papa'));
 
+await store.setCats([{ id: 'liebe', name: 'Liebe', color: '#ff0000' }, { id: 'sonst', name: 'Sonstiges', color: '#cccccc' }]);
+assert.ok(text('data/public.json').includes('"cats"') && store.state.cats.length === 2);
 const many = await store.saveMany([{ item: { title: 'Fotos', date: '2019-08-12', vis: 'private', photos: [] }, newPhotos: [jpg, jpg] },
   { item: { ...pub, title: 'Öffentlicher Tag' }, newPhotos: [jpg] }]);
 assert.equal(many[0].photos.length, 2); assert.equal(many[1].photos.length, 2); assert.equal(store.state.items.length, 3);

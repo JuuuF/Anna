@@ -3,7 +3,9 @@ export const YEAR = 365.25 * 864e5;          // ms in a Julian year = the time l
 export const LS = 1 / 31557600;              // one light-second, in light-years
 export const AU = 499.004784 * LS;           // one astronomical unit, in light-years
 
-export const CATS = {
+// The themes a moment can belong to: id -> [name, colour]. These are the ones the page starts with;
+// the family can rename, recolour, add and remove them (stored with the public data, see applyCats).
+const START_CATS = {
   kindheit: ['Kindheit & Schule', '#8fb8e8'],
   beruf: ['Ausbildung & Beruf', '#9fd4c0'],
   liebe: ['Liebe & Familie', '#e9a5ad'],
@@ -11,6 +13,15 @@ export const CATS = {
   krankheit: ['Krankheit', '#9a93b5'],
   sonst: ['Sonstiges', '#d8d2c4'],
 };
+export const CATS = {};
+// list = [{ id, name, color }] as saved, or nothing for the starting set; "sonst" always exists as the fallback
+export function applyCats(list) {
+  for (const k of Object.keys(CATS)) delete CATS[k];
+  if (list?.length) for (const c of list) CATS[c.id] = [c.name, c.color];
+  else for (const [k, v] of Object.entries(START_CATS)) CATS[k] = [...v];
+  if (!CATS.sonst) CATS.sonst = [...START_CATS.sonst];
+}
+applyCats();
 // how much a moment matters, 1 (a small thing) … 5 (a life event); birth and last light always count fully
 export const weight = i => (i.fixed ? 5 : Math.min(5, Math.max(1, i.imp || 3)));
 export const WEIGHTS = ['eine Kleinigkeit', 'ein schöner Moment', 'wichtig', 'sehr wichtig', 'ein Lebensereignis'];
