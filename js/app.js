@@ -302,19 +302,18 @@ function renderYear() {
   if (y?.kind !== 'year') { el.hidden = true; return; }
   const d = (S.t - y._t) / YEAR;
   const seen = S.stars.map(s => [Math.abs(s.d - d), s]).sort((a, b) => a[0] - b[0]);
-  const close = seen.filter(x => x[0] < 0.75).slice(0, 4), star = s => `<a data-star="${esc(s.n)}">${esc(s.n)}</a>`;
+  const close = seen.filter(x => x[0] < 0.75).slice(0, 4), star = starLink;
   const spans = S.items.filter(i => i._e && i._t <= y._t && y._t <= i._e);
   const near = S.items.filter(i => !i._e && Math.abs(i._t - y._t) < YEAR).sort((a, b) => Math.abs(a._t - y._t) - Math.abs(b._t - y._t)).slice(0, 2);
   el.innerHTML = `<button class="x" aria-label="Schließen">×</button><h3>${monthYear(y._t)}</h3>
     <p>${age(y._t, 'ist')} Das Licht dieser Tage ist jetzt <b>${fmtDist(d)}</b> entfernt.</p>
     <p>${close.length ? `Gerade zu sehen von ${close.map(x => star(x[1])).join(', ')}.`
       : `Kein Stern dieser Karte sieht gerade genau diese Wochen - am nächsten ist ${star(seen[0][1])}.`}</p>
-    ${spans.length || near.length ? `<p class="muted">${[...spans.map(i => `${esc(i.title)} (${spanWhere(i, y._t)})`), ...near.map(i => `<a data-item="${esc(i.id)}">${esc(i.title)}</a> (${dur(i._t - y._t)} ${i._t < y._t ? 'davor' : 'danach'})`)].join('; ')}</p>` : ''}
+    ${spans.length || near.length ? `<p class="muted">${[...spans.map(i => `${itemLink(i)} (${spanWhere(i, y._t)})`), ...near.map(i => `${itemLink(i)} (${dur(i._t - y._t)} ${i._t < y._t ? 'davor' : 'danach'})`)].join('; ')}</p>` : ''}
     ${S.view === 'space' ? '<div class="row"><button id="yfly">Näher heran</button><button id="yhome">Ganzes Leben zeigen</button></div>' : ''}`;
   el.hidden = false;
   $('.x', el).onclick = () => { S.sel = null; el.hidden = true; life.draw(); };
-  $$('[data-star]', el).forEach(a => a.onclick = () => select(S.stars.find(s => s.n === a.dataset.star)));
-  $$('[data-item]', el).forEach(a => a.onclick = () => select(S.items.find(i => i.id === a.dataset.item)));
+  bindLinks(el);
   if ($('#yfly')) $('#yfly').onclick = () => flyTo(y);
   if ($('#yhome')) $('#yhome').onclick = () => $('#zoom [data-zoom=life]').click();
 }
@@ -455,6 +454,20 @@ const lock = i => (i.vis === 'private' ? '<span class="tag">nur Familie &amp; Fr
 // photos whose day nobody remembers only claim their month or year
 const range = i => (i._e ? `${fmtWhen(i.date)} - ${i.end ? fmtWhen(i.end) : 'zuletzt'}` : i.approx ? (i.date.endsWith('-07-01') ? `im Jahr ${i.date.slice(0, 4)}` : `im ${monthYear(parseWhen(i.date))}`) : fmtWhen(i.date));
 
+// a moment or a star named in a text: a link that opens it
+const itemLink = i => `<a data-item="${esc(i.id)}" tabindex="0">${esc(i.title)}</a>`;
+const starLink = s => `<a data-star="${esc(s.n)}" tabindex="0">${esc(s.n)}</a>`;
+function bindLinks(root) {
+  for (const a of $$('a[data-item], a[data-star]', root)) {
+    const open = e => {
+      e.preventDefault(); e.stopPropagation();
+      const o = a.dataset.item ? S.items.find(i => i.id === a.dataset.item) : S.stars.find(s => s.n === a.dataset.star);
+      if (o) select(o);
+    };
+    a.onclick = open; a.onkeydown = e => { if (e.key === 'Enter') open(e); };
+  }
+}
+
 // ---------- detail ----------
 function renderDetail() {
   const o = S.sel, el = $('#p-detail .body'), t = S.t;
@@ -474,12 +487,12 @@ function renderDetail() {
     else if (o._e) {
       const seen = S.stars.filter(s => s.d <= d && s.d >= dEnd);
       h += `<p>Das Licht dieser Zeit füllt gerade die Kugelschale zwischen <b>${fmtDist(dEnd)}</b> und <b>${fmtDist(d)}</b> Entfernung.</p>`;
-      if (seen.length) h += `<p>Diese Zeit ist jetzt zu sehen von: ${seen.slice(0, 12).map(s => esc(s.n)).join(', ')}${seen.length > 12 ? ' und weiteren' : ''}.</p>`;
+      if (seen.length) h += `<p>Diese Zeit ist jetzt zu sehen von: ${seen.slice(0, 12).map(starLink).join(', ')}${seen.length > 12 ? ' und weiteren' : ''}.</p>`;
     } else {
       h += `<p>Das Licht dieses Augenblicks ist jetzt <b>${fmtDist(d)}</b> von der Erde entfernt.</p>`;
       const past = S.stars.filter(s => s.d <= d).pop(), next = S.stars.find(s => s.d > d);
-      if (past) h += `<p>Zuletzt erreichte es <b>${esc(past.n)}</b> - vor ${dur((d - past.d) * YEAR)}.</p>`;
-      if (next) h += `<p>Als Nächstes kommt es bei <b>${esc(next.n)}</b> an - in ${dur((next.d - d) * YEAR)}.</p>`;
+      if (past) h += `<p>Zuletzt erreichte es <b>${starLink(past)}</b> - vor ${dur((d - past.d) * YEAR)}.</p>`;
+      if (next) h += `<p>Als Nächstes kommt es bei <b>${starLink(next)}</b> an - in ${dur((next.d - d) * YEAR)}.</p>`;
     }
     if (d > 0 && S.view === 'space') h += '<p><button id="fly">Näher ansehen</button></p>';
     if (o.by) h += `<p class="muted">Hinzugefügt von ${esc(o.by)}</p>`;
@@ -498,12 +511,12 @@ function renderDetail() {
     } else {
       h += `<p>Von hier aus gesehen ist auf der Erde jetzt der <b>${fmtDate(seen)}</b>. ${age(seen)}</p>`;
       const spans = S.items.filter(i => i._e && i._t <= seen && seen <= i._e);
-      for (const i of spans) h += `<p>Dort läuft gerade <b>${esc(i.title)}</b>: ${spanWhere(i, seen)}.</p>`;
+      for (const i of spans) h += `<p>Dort läuft gerade <b>${itemLink(i)}</b>: ${spanWhere(i, seen)}.</p>`;
       const soon = S.items.find(i => i._e && i._t > seen);
-      if (soon) h += `<p>Demnächst beginnt dort <b>${esc(soon.title)}</b> - in ${dur(soon._t - seen)}.</p>`;
+      if (soon) h += `<p>Demnächst beginnt dort <b>${itemLink(soon)}</b> - in ${dur(soon._t - seen)}.</p>`;
       const ev = S.items.filter(i => !i._e && !i.photoOnly), prev = ev.filter(i => i._t <= seen).pop(), next = ev.find(i => i._t > seen);
-      if (prev) h += `<p>Zuletzt hier angekommen: ${esc(prev.title)} - vor ${dur(seen - prev._t)}.</p>`;
-      if (next) h += `<p>Als Nächstes zu sehen: <b>${esc(next.title)}</b> - in ${dur(next._t - seen)}.</p>`;
+      if (prev) h += `<p>Zuletzt hier angekommen: ${itemLink(prev)} - vor ${dur(seen - prev._t)}.</p>`;
+      if (next) h += `<p>Als Nächstes zu sehen: <b>${itemLink(next)}</b> - in ${dur(next._t - seen)}.</p>`;
       if (star) h += `<p class="muted">Und das Licht, das heute Nacht von ${esc(o.n)} bei uns ankommt, ist an genau diesem Tag dort aufgebrochen.</p>`;
     }
     if (star && S.view === 'sky') {
@@ -517,7 +530,7 @@ function renderDetail() {
       : '<p class="muted">Zu lichtschwach für das bloße Auge.</p>';
     h += '<p><button id="share">Link teilen</button></p>';
   }
-  el.innerHTML = h; hydrate(el);
+  el.innerHTML = h; hydrate(el); bindLinks(el);
   if ($('#toSky')) $('#toSky').onclick = () => { setView(S.view === 'sky' ? 'space' : 'sky'); renderDetail(); };
   if ($('#editSel')) $('#editSel').onclick = () => editItem(o);
   if ($('#editBase')) $('#editBase').onclick = () => { openPanel('login'); $('#person')?.scrollIntoView(); };
@@ -533,7 +546,7 @@ function arrivals() {
 }
 function renderSoon() {
   const t = S.t, all = arrivals(), el = $('#p-soon .body');
-  const row = (a, w) => `<li data-star="${esc(a.s.n)}"><span class="swatch" style="background:${catColor(a.i.cat)}"></span><div><span class="when">${w} ${dur(a.at - t)}</span><br>${esc(a.text)}</div></li>`;
+  const row = (a, w) => `<li data-star="${esc(a.s.n)}"><span class="swatch" style="background:${catColor(a.i.cat)}"></span><div><span class="when">${w} ${dur(a.at - t)}</span><br>${a.i._e ? 'Beginn: ' : ''}${itemLink(a.i)} erreicht ${esc(a.s.n)}</div></li>`;
   const next = all.filter(a => a.at > t).sort((a, b) => a.at - b.at).slice(0, 8);
   const last = all.filter(a => a.at <= t).sort((a, b) => b.at - a.at).slice(0, 4);
   // tonight: the three highest naked-eye stars that are watching her right now
@@ -559,6 +572,7 @@ function renderSoon() {
   $$('li[data-star]', el).forEach(li => li.onclick = () => select(S.stars.find(s => s.n === li.dataset.star)));
   $$('li[data-sky]', el).forEach(li => li.onclick = () => { setView('sky'); select(S.stars.find(s => s.n === li.dataset.sky)); });
   $$('li[data-id]', el).forEach(li => li.onclick = () => select(S.items.find(i => i.id === li.dataset.id)));
+  bindLinks(el);
   $('#ics').onclick = () => {
     const now = Date.now(), z = n => String(n).padStart(2, '0'), day = d => `${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}`;
     const ev = arrivals().filter(a => a.at > now && a.at < now + 2 * YEAR).sort((a, b) => a.at - b.at).map(a => {
