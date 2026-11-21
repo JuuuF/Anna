@@ -20,7 +20,7 @@ function rebuild() {
   applyCats(store.state.cats);
   S.birth = parseWhen(p.birth); S.death = parseWhen(p.death);
   const fixed = [
-    { id: 'birth', title: 'Geburt', date: p.birth, cat: 'freude', text: 'Ihr erstes Licht.', fixed: true, vis: 'public' },
+    { id: 'birth', title: 'Erstes Licht', date: p.birth, cat: 'freude', text: 'Der erste Augenblick ihres Lebens.', fixed: true, vis: 'public' },
     { id: 'death', title: 'Letztes Licht', date: p.death, cat: 'sonst', text: 'Der letzte Augenblick ihres Lebens. Auch dieses Licht reist weiter - hinter ihm folgt alles, was von ihr bleibt.', fixed: true, vis: 'public' },
   ];
   const selId = S.sel?.id;
