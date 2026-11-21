@@ -1,5 +1,6 @@
 // Interface: canvas interaction, floating panels, moments, accounts.
-import { YEAR, AU, LS, CATS, catColor, parseWhen, esc, num, fmtDate, fmtWhen, dur, fmtDist, readDate, readTime, dateInput, timeInput, weight, WEIGHTS } from './util.js';
+import { YEAR, AU, LS, CATS, catColor, parseWhen, esc, num, fmtDate, fmtWhen, dur, fmtDist, readDate, readTime, showDate, dateInput, timeInput, weight, WEIGHTS } from './util.js';
+import { photoTime } from './phototime.js';
 import { vec, bodies, updateBodies, sunAltitude } from './astro.js';
 import * as store from './store.js';
 import { drawSpace, cam, fit, clampScale, panBy, atHome } from './space.js';
@@ -532,6 +533,7 @@ function editItem(item) {
       <span style="display:flex;justify-content:space-between;font-size:12.5px"><span>eine Kleinigkeit</span><span>ein Lebensereignis</span></span></label>
     <label>Ein paar Worte dazu<textarea name="text" maxlength="4000" placeholder="Was möchtest du erzählen?">${esc(i.text)}</textarea></label>
     <label>Fotos<input type="file" name="photos" accept="image/*" multiple></label>
+    <p class="muted" id="photoHint" style="margin:-8px 0 0" hidden></p>
     <div class="photos" id="thumbs"></div>
     <div class="choice">
       <label><input type="radio" name="vis" value="private" ${i.vis !== 'public' ? 'checked' : ''}><span>Nur für Familie &amp; Freunde<small>verschlüsselt, nur mit Anmeldung sichtbar</small></span></label>
@@ -551,6 +553,23 @@ function editItem(item) {
   $$('[name=period]', el).forEach(r => r.onchange = toggle);
   const impWord = () => { $('#impWord').textContent = '– ' + WEIGHTS[form.imp.value - 1]; };
   form.imp.oninput = impWord; impWord();
+  // a chosen photo often knows when it was taken: from the camera's record or from its file name
+  form.photos.onchange = async () => {
+    const hint = $('#photoHint');
+    for (const file of form.photos.files) {
+      const got = await photoTime(file, S.birth, S.death).catch(() => null);
+      if (!got) continue;
+      const when = showDate(got.date) + (got.time ? `, ${got.time} Uhr` : '');
+      const take = () => { form.date.value = showDate(got.date); if (got.time) form.time.value = got.time; hint.textContent = `Datum aus ${got.source} übernommen: ${when}. Bitte kurz prüfen.`; };
+      hint.hidden = false;
+      if (!form.date.value.trim()) take();
+      else if (readDate(form.date.value) !== got.date) { hint.innerHTML = `Dieses Foto ist laut ${got.source} vom ${when}. <a>Dieses Datum übernehmen</a>`; $('a', hint).onclick = take; }
+      else if (got.time && !form.time.value.trim()) { form.time.value = got.time; hint.textContent = `Uhrzeit aus ${got.source} übernommen: ${got.time} Uhr.`; }
+      else hint.hidden = true;
+      return;
+    }
+    hint.hidden = true;
+  };
   thumbs(); toggle();
   const busy = on => $$('button', form).forEach(b => { b.disabled = on; });
   const fail = e => { busy(false); status.className = 'status err'; status.textContent = 'Das hat leider nicht geklappt: ' + (e.message || e.name || 'unbekannter Fehler'); console.error(e); };
