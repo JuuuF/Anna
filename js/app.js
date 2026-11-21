@@ -219,7 +219,9 @@ function deselect() {
   if (!S.sel || J.on) return;
   S.sel = null; $('#yearcard').hidden = true; closePanel('detail'); renderDetail(); shareHash();
 }
-function select(o) { if (J.on) stopJourney(); $('#yearcard').hidden = true; S.sel = o; shareHash(); if (S.view === 'sky' && o?.kind === 'star') lookAt(o, S.skyT ?? Date.now()); renderDetail(); openPanel('detail'); }
+// selecting a moment in the 3D view also makes it the point the view turns around
+function select(o) { if (J.on) stopJourney(); $('#yearcard').hidden = true; S.sel = o; shareHash();
+  if (S.view === 'space' && o?._t && o.kind !== 'year') { cam.focus = o; cam.touched = performance.now(); } if (S.view === 'sky' && o?.kind === 'star') lookAt(o, S.skyT ?? Date.now()); renderDetail(); openPanel('detail'); }
 
 // the address bar always names what is selected, so a link to a star or a moment can be passed on
 function shareHash() {
@@ -396,7 +398,6 @@ function renderDetail() {
     else if (o.fixed && store.state.session?.role === 'admin') h += '<p><button id="editBase">Datum ändern</button></p>';
     if (inLife(o._t)) h += `<p>${age(o._t, 'war')}</p>`;
     if (o.text) h += `<p>${esc(o.text).replace(/\n/g, '<br>')}</p>`;
-    if (o.photos?.length) h += `<div class="photos big">${o.photos.map(p => `<figure><img data-photo="${esc(p)}" alt=""></figure>`).join('')}</div>`;
     if (d <= 0) h += '<p class="muted">Dieser Moment liegt von hier aus gesehen noch in der Zukunft.</p>';
     else if (o._e) {
       const seen = S.stars.filter(s => s.d <= d && s.d >= dEnd);
@@ -411,6 +412,8 @@ function renderDetail() {
     if (d > 0 && S.view === 'space') h += '<p><button id="fly">Näher ansehen</button></p>';
     if (o.by) h += `<p class="muted">Hinzugefügt von ${esc(o.by)}</p>`;
     if (o.vis === 'public') h += '<p><button id="share">Link teilen</button></p>';
+    // the photos come last, so that nothing is hidden below them
+    if (o.photos?.length) h += `<div class="photos big" style="margin-top:14px">${o.photos.map(p => `<figure><img data-photo="${esc(p)}" alt=""></figure>`).join('')}</div>`;
   } else {                                                            // a star, a planet, a probe
     const d = o.d, seen = t - d * YEAR, star = o.kind === 'star';
     h += `<p class="muted">${star && o.con ? `Sternbild ${esc(o.con)} · ` : ''}${fmtDist(d)} entfernt</p>`;
