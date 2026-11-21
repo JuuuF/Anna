@@ -1,5 +1,5 @@
 // Interface: canvas interaction, floating panels, moments, accounts.
-import { YEAR, AU, LS, CATS, catColor, parseWhen, esc, num, fmtDate, fmtWhen, dur, fmtDist, readDate, readTime, dateInput, timeInput } from './util.js';
+import { YEAR, AU, LS, CATS, catColor, parseWhen, esc, num, fmtDate, fmtWhen, dur, fmtDist, readDate, readTime, dateInput, timeInput, weight, WEIGHTS } from './util.js';
 import { vec, bodies, updateBodies, sunAltitude } from './astro.js';
 import * as store from './store.js';
 import { drawSpace, cam, fit, clampScale, panBy, atHome } from './space.js';
@@ -114,7 +114,7 @@ cv.addEventListener('pointermove', e => {
 const release = e => {
   if (pointers.delete(e.pointerId) && moved < 8 && e.type === 'pointerup') {
     const o = pick(e.clientX, e.clientY, e.pointerType === 'mouse' ? 20 : 30);
-    if (o) select(o);
+    if (o) select(o); else deselect();           // a tap on empty sky lets go of whatever was selected
   }
   pinch = 0; mid = null;
 };
@@ -214,6 +214,10 @@ for (const p of $$('.panel')) {
     head.addEventListener('pointerup', () => head.removeEventListener('pointermove', move), { once: true });
   });
 }
+function deselect() {
+  if (!S.sel || J.on) return;
+  S.sel = null; $('#yearcard').hidden = true; closePanel('detail'); renderDetail(); shareHash();
+}
 function select(o) { if (J.on) stopJourney(); $('#yearcard').hidden = true; S.sel = o; shareHash(); if (S.view === 'sky' && o?.kind === 'star') lookAt(o, S.skyT ?? Date.now()); renderDetail(); openPanel('detail'); }
 
 // the address bar always names what is selected, so a link to a star or a moment can be passed on
@@ -312,7 +316,7 @@ function showStation() {
     h = `<div class="jbody">${ph.length ? `<figure><img data-photo="${esc(ph[0])}" alt="">${ph.length > 1 ? `<small>${ph.length} Fotos</small>` : ''}</figure>` : ''}
       <div><p class="meta">${J.i + 1} von ${n - 1} · ${o._e ? range(o) : fmtWhen(o.date)}${inLife(o._t) && o.id !== 'birth' ? ` · ${age(o._t, 'war').replace(/^Anna war /, '').replace(/ alt\.$/, '')}` : ''}</p>
       <h3>${esc(o.title)}</h3>${o.text ? `<p class="jtext">${esc(o.text)}</p>` : ''}<p>${where}</p></div></div>`;
-    secs = Math.min(24, 8 + (o.text || '').length / 28 + ph.length * 3);
+    secs = Math.min(26, (8 + (o.text || '').length / 28 + ph.length * 3) * (0.7 + 0.1 * weight(o)));      // more time for what matters more
   }
   el.innerHTML = `<div class="bar">${secs ? `<i style="animation-duration:${secs}s"></i>` : ''}</div>${h}
     <div class="row"><button data-j="prev" ${J.i ? '' : 'disabled'}>Zurück</button>
@@ -427,7 +431,7 @@ function renderDetail() {
 // ---------- arrivals ----------
 function arrivals() {
   const out = [];
-  for (const i of S.items) for (const s of S.stars) out.push({ i, s, at: i._t + s.d * YEAR, text: `${i._e ? 'Beginn: ' : ''}${i.title} erreicht ${s.n}` });
+  for (const i of S.items) if (weight(i) >= 2) for (const s of S.stars) out.push({ i, s, at: i._t + s.d * YEAR, text: `${i._e ? 'Beginn: ' : ''}${i.title} erreicht ${s.n}` });
   return out;
 }
 function renderSoon() {
@@ -523,6 +527,9 @@ function editItem(item) {
       <label>Uhrzeit (wenn bekannt)${timeInput('endtime', t1)}</label></div>
     <p class="muted" data-end style="margin:-6px 0 0">„Bis wann“ leer lassen, wenn der Zeitraum bis zuletzt andauerte.</p>
     <label>Thema<select name="cat">${Object.entries(CATS).map(([k, [n]]) => `<option value="${k}" ${k === i.cat ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+    <label>Wie wichtig ist dieser Moment? <span id="impWord" style="color:var(--text)"></span>
+      <input type="range" name="imp" min="1" max="5" step="1" value="${i.imp || 3}" style="accent-color:var(--gold)">
+      <span style="display:flex;justify-content:space-between;font-size:12.5px"><span>eine Kleinigkeit</span><span>ein Lebensereignis</span></span></label>
     <label>Ein paar Worte dazu<textarea name="text" maxlength="4000" placeholder="Was möchtest du erzählen?">${esc(i.text)}</textarea></label>
     <label>Fotos<input type="file" name="photos" accept="image/*" multiple></label>
     <div class="photos" id="thumbs"></div>
@@ -542,6 +549,8 @@ function editItem(item) {
   };
   const toggle = () => $$('[data-end]', el).forEach(n => { n.hidden = !form.period.value; $('[data-l=from]', el).textContent = form.period.value ? 'Von wann?' : 'Wann?'; });
   $$('[name=period]', el).forEach(r => r.onchange = toggle);
+  const impWord = () => { $('#impWord').textContent = '– ' + WEIGHTS[form.imp.value - 1]; };
+  form.imp.oninput = impWord; impWord();
   thumbs(); toggle();
   const busy = on => $$('button', form).forEach(b => { b.disabled = on; });
   const fail = e => { busy(false); status.className = 'status err'; status.textContent = 'Das hat leider nicht geklappt: ' + (e.message || e.name || 'unbekannter Fehler'); console.error(e); };
@@ -566,7 +575,7 @@ function editItem(item) {
       const { _t, _e, ...base } = i;
       const saved = await store.saveItem({
         ...base, title: f.title.value.trim(), date: withTime(date, time), period: !!f.period.value,
-        end: withTime(end, endtime), cat: f.cat.value, text: f.text.value.trim(), vis: f.vis.value, photos: keep,
+        end: withTime(end, endtime), cat: f.cat.value, imp: +f.imp.value, text: f.text.value.trim(), vis: f.vis.value, photos: keep,
       }, photos, removed);
       rebuild(); select(S.items.find(x => x.id === saved.id));
     } catch (err) { fail(err); }
@@ -647,7 +656,7 @@ function renderAll() { life.draw(); renderDetail(); renderSoon(); renderMoments(
 const DEMO = [['Einschulung', '1976-08-30', '', 'kindheit'], ['Schulzeit', '1976-08-30', '1989-06-16', 'kindheit'], ['Konfirmation', '1984-04-15', '', 'kindheit'],
   ['Tanzkurs', '1986-10-03', '', 'freude'], ['Abitur', '1989-06-16', '', 'kindheit'], ['Ausbildung', '1989-09-01', '1992-07-31', 'beruf'], ['Erste Begegnung', '1994-07-09', '', 'liebe'],
   ['Hochzeit', '1998-05-23T14:30', '', 'liebe'], ['Ehe', '1998-05-23', null, 'liebe'], ['Einzug ins Haus', '2004-10-01', '', 'liebe'], ['Reise ans Meer', '2015-08-12', '', 'freude'],
-  ['Krankheit', '2023-03-01', null, 'krankheit']].map(([title, date, end, cat], n) => ({ id: 'demo' + n, title, date, end: end || '', period: end !== '', cat, vis: 'public', photos: [],
+  ['Krankheit', '2023-03-01', null, 'krankheit']].map(([title, date, end, cat], n) => ({ id: 'demo' + n, title, date, end: end || '', period: end !== '', cat, vis: 'public', photos: [], imp: { Hochzeit: 5, 'Erste Begegnung': 5, Tanzkurs: 1, Konfirmation: 2 }[title],
   text: 'Ein Beispieltext, der nur beim Testen auf dem eigenen Rechner erscheint.' }));
 
 // ---------- start ----------

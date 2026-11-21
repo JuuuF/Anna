@@ -11,6 +11,9 @@ export const CATS = {
   krankheit: ['Krankheit', '#9a93b5'],
   sonst: ['Sonstiges', '#d8d2c4'],
 };
+// how much a moment matters, 1 (a small thing) … 5 (a life event); birth and last light always count fully
+export const weight = i => (i.fixed ? 5 : Math.min(5, Math.max(1, i.imp || 3)));
+export const WEIGHTS = ['eine Kleinigkeit', 'ein schöner Moment', 'wichtig', 'sehr wichtig', 'ein Lebensereignis'];
 export const catColor = c => (CATS[c] || CATS.sonst)[1];
 
 // '1998-05-23' or '1998-05-23T14:30' -> ms (local time; a date without time counts as noon)

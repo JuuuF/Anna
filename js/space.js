@@ -1,5 +1,5 @@
 // The 3D map: Earth in the centre, real star positions around it, and the light of a lifetime as a growing sphere.
-import { YEAR, LS, AU, catColor, starColor, placeLabels } from './util.js';
+import { YEAR, LS, AU, catColor, starColor, placeLabels, weight } from './util.js';
 import { bodies, orbits, orbitPoints, moonPath, sun, vec } from './astro.js';
 import { milky, mistSprite } from './sky.js';
 
@@ -258,18 +258,18 @@ export function drawSpace(ctx, W, H, S) {
       ctx.globalAlpha = 1; ctx.lineCap = 'butt';
       const m = [(a[0] + b[0]) / 2 + off, (a[1] + b[1]) / 2];
       if (onScreen(m)) {
-        labels.push({ x: m[0] + 10, y: m[1] + 4, text: it.title, align: 'left', color: '#fff', box: color, font: 'italic 13px EB Garamond, Georgia, serif', prio: on ? 100 : 40, force: on });
+        labels.push({ x: m[0] + 10, y: m[1] + 4, text: it.title, align: 'left', color: '#fff', box: color, font: 'italic 13px EB Garamond, Georgia, serif', prio: on ? 100 : 28 + 4 * weight(it), force: on });
         hits.push({ x: m[0], y: m[1], o: it }, { x: a[0] + off, y: a[1], o: it }, { x: b[0] + off, y: b[1], o: it });
       }
       continue;
     }
     const p = proj(up(d));
     if (!onScreen(p) || d * sc < 4) continue;
-    const q = on ? 9 : 7;                                // moments are diamonds with a name plate – stars are round dots
+    const w = weight(it), q = (on ? 2 : 0) + 4.3 + 0.9 * w;      // moments are diamonds with a name plate – the more a moment matters, the larger
     ctx.beginPath(); ctx.moveTo(p[0], p[1] - q); ctx.lineTo(p[0] + q, p[1]); ctx.lineTo(p[0], p[1] + q); ctx.lineTo(p[0] - q, p[1]); ctx.closePath();
     ctx.fillStyle = it.id === 'death' ? '#1b1630' : color; ctx.fill();
     ctx.strokeStyle = on ? '#fff' : it.id === 'death' ? color : 'rgba(255,255,255,.85)'; ctx.lineWidth = on ? 2.5 : 1.5; ctx.stroke();
-    labels.push({ x: p[0] - 13, y: p[1] + 4, text: it.title, align: 'right', color: '#fff', box: on ? '#fff' : color, font: '14px EB Garamond, Georgia, serif', prio: on ? 100 : it.fixed ? 60 : 50, force: on });
+    labels.push({ x: p[0] - 13, y: p[1] + 4, text: it.title, align: 'right', color: '#fff', box: on ? '#fff' : color, font: `${Math.round(11.5 + 0.9 * w)}px EB Garamond, Georgia, serif`, prio: on ? 100 : 36 + 5 * w, force: on });
     hits.push({ x: p[0], y: p[1], o: it });
   }
 
