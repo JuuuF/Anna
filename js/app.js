@@ -10,7 +10,7 @@ const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const S = { calm: matchMedia('(prefers-reduced-motion: reduce)').matches, t: Date.now(), offset: 0, view: 'space', sel: null, hover: null, stars: [], sky: null, items: [], birth: 0, death: 0, skyT: null };
 const cv = $('#view'), ctx = cv.getContext('2d');
-let W = 0, H = 0, hits = [];
+let W = 0, H = 0, hits = [], ticks = 0;
 
 // ---------- model ----------
 function rebuild() {
@@ -41,6 +41,11 @@ function age(at, verb = 'ist') {
   return m < 1 ? `Anna ${verb} gerade erst geboren.` : `Anna ${verb} ${m} ${m === 1 ? 'Monat' : 'Monate'} alt.`;
 }
 const inLife = at => at >= S.birth && at <= S.death;
+function spanWhere(i, at) {
+  const into = at - i._t, total = i._e - i._t;
+  const part = total > 1.5 * YEAR ? `das ${Math.floor(into / YEAR) + 1}. Jahr` : into < total / 3 ? 'gerade erst begonnen' : into > total * 2 / 3 ? 'schon fast vorbei' : 'mittendrin';
+  return part + (i.end ? `, zu Ende in ${dur(i._e - at)}` : '');
+}
 
 // ---------- canvas ----------
 function frame() {
@@ -60,6 +65,7 @@ function frame() {
   updateBodies(S.t);
   hits = (S.view === 'space' ? drawSpace : drawSky)(ctx, W, H, S);
   $('#homeBtn').hidden = atHome();
+  if (S.view === 'space') { $('#thumb').style.top = scaleY(Math.min(W, H) * 0.4 / cam.scale) + 'px'; if (++ticks % 90 === 1) layoutScale(); }
   requestAnimationFrame(frame);
 }
 function pick(x, y, reach = 20) {
@@ -118,14 +124,31 @@ cv.addEventListener('wheel', e => {
 }, { passive: false });
 cv.addEventListener('dblclick', e => { if (S.view === 'space') flyTo(pick(e.clientX, e.clientY)); });
 
-$$('#zoom button').forEach(b => b.onclick = () => {
-  const z = b.dataset.zoom, dOut = (S.t - S.birth) / YEAR, dIn = Math.max((S.t - S.death) / YEAR, 2e-4);
-  cam.touched = performance.now();
-  if (z !== 'in' && z !== 'out') goHome();
-  if (z === 'home') return;
-  cam.target = clampScale(z === 'in' ? cam.target * 2 : z === 'out' ? cam.target / 2
-    : fit(z === 'life' ? Math.max(dOut, 20) * 1.08 : z === 'near' ? 13 : z === 'last' ? dIn * 1.5 : 33 * AU, W, H));
+// ---- the ruler of distances: the named views sit where they belong, from the Moon up to her whole life ----
+const VMAX = Math.log10(150), VMIN = Math.log10(1.3 * LS), scaleEl = $('#scale');
+function viewRadius(z) {                               // how many light-years fit between the middle and the edge of the picture
+  const dOut = (S.t - S.birth) / YEAR, dIn = Math.max((S.t - S.death) / YEAR, 2e-4);
+  return z === 'life' ? Math.max(dOut, 20) * 1.08 : z === 'near' ? 13 : z === 'last' ? dIn * 1.5 : z === 'solar' ? 33 * AU : 2.4 * LS;
+}
+const scaleY = r => Math.min(1, Math.max(0, (VMAX - Math.log10(r)) / (VMAX - VMIN))) * scaleEl.clientHeight;
+function layoutScale() { for (const b of $$('button', scaleEl)) b.style.top = scaleY(viewRadius(b.dataset.zoom)) + 'px'; }
+$$('#zoom [data-zoom]').forEach(b => b.onclick = () => {
+  cam.touched = performance.now(); cam.ease = 0.12; goHome();
+  if (b.dataset.zoom !== 'home') cam.target = clampScale(fit(viewRadius(b.dataset.zoom), W, H));
 });
+function scaleDrag(e) {
+  const r = scaleEl.getBoundingClientRect(), y = Math.min(r.height, Math.max(0, e.clientY - r.top));
+  cam.target = clampScale(fit(10 ** (VMAX - y / r.height * (VMAX - VMIN)), W, H)); cam.ease = 0.2; cam.touched = performance.now();
+}
+scaleEl.addEventListener('pointerdown', e => { if (e.target.closest('button')) return; scaleEl.setPointerCapture(e.pointerId); scaleDrag(e); });
+scaleEl.addEventListener('pointermove', e => { if (scaleEl.hasPointerCapture(e.pointerId)) scaleDrag(e); });
+addEventListener('resize', layoutScale);
+
+// the slow turning of the map can be switched off, to look at one arrangement in peace
+try { S.still = localStorage.getItem('annas-licht-drehung') === 'aus'; } catch { /* ignore */ }
+const spinText = () => { $('#spin').textContent = S.still ? 'Drehung starten' : 'Drehung anhalten'; };
+$('#spin').onclick = () => { S.still = !S.still; cam.touched = 0; try { localStorage.setItem('annas-licht-drehung', S.still ? 'aus' : 'an'); } catch { /* ignore */ } spinText(); };
+spinText();
 
 function setView(v) {
   S.view = v; S.hover = null;
@@ -230,7 +253,7 @@ function renderYear() {
     <p>${age(y._t, 'ist')} Das Licht dieser Tage ist jetzt <b>${fmtDist(d)}</b> entfernt.</p>
     <p>${close.length ? `Gerade zu sehen von ${close.map(x => star(x[1])).join(', ')}.`
       : `Kein Stern dieser Karte sieht gerade genau diese Wochen – am nächsten ist ${star(seen[0][1])}.`}</p>
-    ${spans.length || near.length ? `<p class="muted">${[...spans.map(i => esc(i.title)), ...near.map(i => `<a data-item="${i.id}">${esc(i.title)}</a> (${dur(i._t - y._t)} ${i._t < y._t ? 'davor' : 'danach'})`)].join(' · ')}</p>` : ''}
+    ${spans.length || near.length ? `<p class="muted">${[...spans.map(i => `${esc(i.title)} (${spanWhere(i, y._t)})`), ...near.map(i => `<a data-item="${i.id}">${esc(i.title)}</a> (${dur(i._t - y._t)} ${i._t < y._t ? 'davor' : 'danach'})`)].join(' · ')}</p>` : ''}
     ${S.view === 'space' ? '<div class="row"><button id="yfly">Näher heran</button><button id="yhome">Ganzes Leben zeigen</button></div>' : ''}`;
   el.hidden = false;
   $('.x', el).onclick = () => { S.sel = null; el.hidden = true; life.draw(); };
@@ -340,6 +363,8 @@ function renderDetail() {
   if (o._t) {                                                         // a moment or a span of time
     const d = (t - o._t) / YEAR, dEnd = o._e ? Math.max(0, (t - o._e) / YEAR) : d;
     h += `<p><span class="tag">${esc((CATS[o.cat] || CATS.sonst)[0])}</span>${lock(o)}</p><p>${range(o)}</p>`;
+    if (store.canEdit(o)) h += '<p><button id="editSel" class="primary">Diesen Moment bearbeiten</button></p>';
+    else if (o.fixed && store.state.session?.role === 'admin') h += '<p><button id="editBase">Datum ändern</button></p>';
     if (inLife(o._t)) h += `<p>${age(o._t, 'war')}</p>`;
     if (o.text) h += `<p>${esc(o.text).replace(/\n/g, '<br>')}</p>`;
     if (o.photos?.length) h += `<div class="photos big">${o.photos.map(p => `<figure><img data-photo="${esc(p)}" alt=""></figure>`).join('')}</div>`;
@@ -357,7 +382,6 @@ function renderDetail() {
     if (d > 0 && S.view === 'space') h += '<p><button id="fly">Näher ansehen</button></p>';
     if (o.by) h += `<p class="muted">Hinzugefügt von ${esc(o.by)}</p>`;
     if (o.vis === 'public') h += '<p><button id="share">Link teilen</button></p>';
-    if (store.canEdit(o)) h += '<p><button id="editSel">Bearbeiten</button></p>';
   } else {                                                            // a star, a planet, a probe
     const d = o.d, seen = t - d * YEAR, star = o.kind === 'star';
     h += `<p class="muted">${star && o.con ? `Sternbild ${esc(o.con)} · ` : ''}${fmtDist(d)} entfernt</p>`;
@@ -370,7 +394,9 @@ function renderDetail() {
     } else {
       h += `<p>Von hier aus gesehen ist auf der Erde jetzt der <b>${fmtDate(seen)}</b>. ${age(seen)}</p>`;
       const spans = S.items.filter(i => i._e && i._t <= seen && seen <= i._e);
-      if (spans.length) h += `<p>Dort ist gerade: ${spans.map(i => `<b>${esc(i.title)}</b>`).join(', ')}.</p>`;
+      for (const i of spans) h += `<p>Dort läuft gerade <b>${esc(i.title)}</b>: ${spanWhere(i, seen)}.</p>`;
+      const soon = S.items.find(i => i._e && i._t > seen);
+      if (soon) h += `<p>Demnächst beginnt dort <b>${esc(soon.title)}</b> – in ${dur(soon._t - seen)}.</p>`;
       const ev = S.items.filter(i => !i._e), prev = ev.filter(i => i._t <= seen).pop(), next = ev.find(i => i._t > seen);
       if (prev) h += `<p>Zuletzt hier angekommen: ${esc(prev.title)} – vor ${dur(seen - prev._t)}.</p>`;
       if (next) h += `<p>Als Nächstes zu sehen: <b>${esc(next.title)}</b> – in ${dur(next._t - seen)}.</p>`;
@@ -390,6 +416,7 @@ function renderDetail() {
   el.innerHTML = h; hydrate(el);
   if ($('#toSky')) $('#toSky').onclick = () => { setView(S.view === 'sky' ? 'space' : 'sky'); renderDetail(); };
   if ($('#editSel')) $('#editSel').onclick = () => editItem(o);
+  if ($('#editBase')) $('#editBase').onclick = () => { openPanel('login'); $('#person')?.scrollIntoView(); };
   if ($('#fly')) $('#fly').onclick = () => flyTo(o);
   if ($('#share')) $('#share').onclick = async e => { const done = await shareLink(o.n || o.name || o.title); if (done) e.target.textContent = done; };
 }
@@ -458,9 +485,11 @@ function renderMoments() {
   el.innerHTML = (can ? '<p><button class="primary" id="add">+ Einen Moment hinzufügen</button></p>'
     : '<p class="muted">Wer Anna kannte, kann hier eigene Erinnerungen hinzufügen – dafür bitte unten auf „Anmelden“ tippen.</p>')
     + tools + `<ul class="list">${shown.map(i => `<li data-id="${i.id}"><span class="swatch ${i._e ? 'span' : ''}" style="background:${catColor(i.cat)}"></span>
-      <div>${esc(i.title)} ${lock(i)}<small>${range(i)}${i.photos?.length ? ` · ${i.photos.length} Foto${i.photos.length > 1 ? 's' : ''}` : ''}</small></div></li>`).join('')}</ul>`;
+      <div style="flex:1">${esc(i.title)} ${lock(i)}<small>${range(i)}${i.photos?.length ? ` · ${i.photos.length} Foto${i.photos.length > 1 ? 's' : ''}` : ''}</small></div>
+      ${store.canEdit(i) ? `<button data-edit="${i.id}" style="padding:4px 10px;font-size:13px">Bearbeiten</button>` : ''}</li>`).join('')}</ul>`;
   $$('li[data-id]', el).forEach(li => li.onclick = () => select(S.items.find(i => i.id === li.dataset.id)));
   $$('[data-tab]', el).forEach(b => b.onclick = () => { momentsTab = b.dataset.tab; renderMoments(); });
+  $$('[data-edit]', el).forEach(b => b.onclick = e => { e.stopPropagation(); editItem(S.items.find(i => i.id === b.dataset.edit)); });
   if ($('#find')) $('#find').oninput = e => { momentsFind = e.target.value; renderMoments(); const f = $('#find'); f.focus(); f.setSelectionRange(f.value.length, f.value.length); };
   if (can) $('#add').onclick = () => editItem(null);
 }

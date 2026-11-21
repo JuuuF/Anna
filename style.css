@@ -49,10 +49,13 @@ a { color: var(--gold); cursor: pointer; text-decoration: underline; text-decora
 #zoom { position: fixed; top: 60px; right: 26px; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
 #zoom button { border: 0; background: none; padding: 4px 0; font-size: 14.5px; color: #bdbac6; white-space: nowrap; text-shadow: 0 1px 8px #000, 0 0 2px #000; }
 #zoom button:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
-#zoom #homeBtn { color: var(--gold); }
-#zoom .pm { display: flex; gap: 6px; margin-top: 6px; }
-#zoom .pm button { width: 30px; height: 30px; padding: 0; border: 1px solid var(--line2); background: rgba(9, 11, 20, .78); color: var(--text); font-size: 17px; text-decoration: none; text-shadow: none; }
-#zoom .pm button:hover { border-color: var(--text); text-decoration: none; }
+#zoom #homeBtn { background: var(--gold); color: #15131c; border: 1px solid var(--gold); padding: 8px 14px; font-size: 15px; text-shadow: none; text-decoration: none; margin-bottom: 14px; box-shadow: 0 4px 18px rgba(0, 0, 0, .5); }
+/* a ruler of distances: the far end at the top, the Earth at the bottom */
+#scale { position: relative; width: 170px; height: 280px; border-right: 1px solid var(--line2); margin: 6px 5px 12px 0; cursor: ns-resize; touch-action: none; }
+#scale button { position: absolute; right: 12px; transform: translateY(-50%); padding: 2px 0; line-height: 1.1; }
+#scale button::after { content: ""; position: absolute; right: -12px; top: 50%; width: 8px; border-top: 1px solid var(--line2); }
+#thumb { position: absolute; right: -6px; width: 11px; height: 11px; margin-top: -5.5px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 3px rgba(7, 9, 18, .8); pointer-events: none; }
+#spin { font-size: 13px !important; }
 
 #skybar { position: fixed; top: 58px; right: 26px; width: min(480px, calc(100vw - 20px)); background: var(--panel); border: 1px solid var(--line); border-radius: 4px; font: 14px var(--sans); }
 #skytoggle { border: 0; background: none; width: 100%; text-align: left; padding: 10px 14px; font-size: 14px; display: flex; gap: 8px; align-items: baseline; }
@@ -110,8 +113,8 @@ body.journey #hint, body.journey #yearcard, body.journey #zoom { display: none !
 .panel { position: fixed; top: 226px; width: 380px; max-width: calc(100vw - 24px); max-height: calc(100vh - 226px - var(--bottom) - 14px); display: flex; flex-direction: column;
   background: var(--panel); border: 1px solid var(--line); border-radius: 4px; box-shadow: 0 10px 34px rgba(0, 0, 0, .55); }
 .panel.left { left: 26px; }
-.panel.right { right: 26px; top: 240px; max-height: calc(100vh - 240px - var(--bottom) - 14px); }
-body.sky .panel.right { top: 200px; max-height: calc(100vh - 200px - var(--bottom) - 14px); }
+.panel.right { right: 222px; top: 64px; max-height: calc(100vh - 64px - var(--bottom) - 14px); }      /* beside the ruler of distances */
+body.sky .panel.right { right: 26px; top: 200px; max-height: calc(100vh - 200px - var(--bottom) - 14px); }
 .panel.bottom { left: 50%; top: auto; bottom: calc(var(--bottom) + 12px); transform: translateX(-50%); width: 440px; }
 .panel > header { display: flex; align-items: center; justify-content: space-between; padding: 12px 8px 10px 20px; cursor: move; border-bottom: 1px solid var(--line); touch-action: none; }
 .panel h2 { font: 500 22px/1.2 var(--serif); margin: 0; }
@@ -177,9 +180,11 @@ textarea { resize: vertical; min-height: 84px; font: 17px/1.45 var(--serif); }
   #play { padding: 7px 12px; font-size: 14px; }
   #views { top: 12px; right: 14px; gap: 14px; }
   #views button { font-size: 11.5px; letter-spacing: .07em; }
-  #zoom { top: 156px; left: 14px; right: 14px; flex-flow: row wrap; align-items: center; gap: 0 16px; }
+  #zoom { top: 150px; right: 10px; }
+  #scale { width: 130px; height: 190px; }
+  #scale button { font-size: 12.5px; }
   #zoom button { font-size: 13.5px; }
-  #zoom [data-zoom=near], #zoom .pm { display: none; }
+  #zoom [data-zoom=near] { display: none; }
   #skybar { top: 56px; left: 8px; right: 8px; width: auto; }
   #life { bottom: 50px; height: 54px; padding: 0 4px; }
   #dock { height: 50px; gap: 0; padding: 0 4px env(safe-area-inset-bottom); justify-content: stretch; }

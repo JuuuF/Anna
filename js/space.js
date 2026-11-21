@@ -1,6 +1,7 @@
 // The 3D map: Earth in the centre, real star positions around it, and the light of a lifetime as a growing sphere.
 import { YEAR, LS, AU, catColor, starColor, placeLabels } from './util.js';
 import { bodies, orbits, orbitPoints, moonPath, sun, vec } from './astro.js';
+import { milky, mistSprite } from './sky.js';
 
 // c: the point the camera looks at and turns around (light-years, Earth = 0), tc: where it is gliding to,
 // focus: an object to stay with (a star, a planet, a moment on the lifeline)
@@ -22,7 +23,7 @@ export function panBy(dx, dy) {
 }
 export const atHome = () => !cam.focus && Math.hypot(...cam.tc) < 1e-9;
 export const fit = (ly, W, H) => Math.min(W, H) * 0.4 / ly;
-export const clampScale = s => Math.min(4e9, Math.max(1.5, s));
+export const clampScale = s => Math.min(1.2e10, Math.max(1.5, s));
 
 // distance rings on the reference plane
 const RINGS = [[LS, '1 Lichtsekunde'], [60 * LS, '1 Lichtminute'], [600 * LS, '10 Lichtminuten'], [3600 * LS, '1 Lichtstunde'],
@@ -40,7 +41,7 @@ export function drawSpace(ctx, W, H, S) {
   if (Math.abs(Math.log(cam.target / cam.scale)) < 0.01) cam.ease = 0.12;
   if (cam.focus) cam.tc = [...posOf(cam.focus, t)];
   cam.c = cam.c.map((c, i) => (Math.abs(cam.tc[i] - c) * cam.scale < 0.05 ? cam.tc[i] : c + (cam.tc[i] - c) * 0.1));
-  if (performance.now() - cam.touched > 5000 && !S.hover && !S.calm) cam.yaw += 0.0006;
+  if (performance.now() - cam.touched > 5000 && !S.hover && !S.calm && !S.still) cam.yaw += 0.0006;
   const sc = cam.scale, F = 1.05 * Math.max(W, H);     // small F = strong perspective
   const cyaw = Math.cos(cam.yaw), syaw = Math.sin(cam.yaw), cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
   const rot = v => {
@@ -86,17 +87,27 @@ export function drawSpace(ctx, W, H, S) {
     ctx.globalAlpha = alpha; ctx.fillStyle = color;
     ctx.fillRect(px - size / 2, py - size / 2, size, size);
   };
+  const mist = mistSprite();                           // the Milky Way as a landmark far behind everything
+  for (const m of milky) {
+    const [x, up, depth] = rot(m.dir);
+    if (depth < 0.15) continue;
+    const px = cx + x / depth * FB, py = cy - up / depth * FB, size = FB * m[2] * Math.PI / 180 / depth;
+    if (px < -size || px > W + size || py < -size || py > H + size) continue;
+    ctx.globalAlpha = m[3] * 0.9; ctx.drawImage(mist, px - size, py - size, 2 * size, 2 * size);
+  }
   for (const [dir, a] of dust) far(dir, 1.1, a, '#fff');
   if (S.sky) for (const s of S.sky.stars) far(s.dir, Math.max(1, 2.8 - s[2] * 0.4), 0.5, starColor(s[3]));
   ctx.globalAlpha = 1;
 
   // ---- the light of her lifetime ----
   const o = proj([0, 0, 0]);
-  const big = 6 * Math.max(W, H);
-  const sil = r => {                                   // outline radius of a sphere around Earth; huge once the camera is inside it
-    const Rpx = r * sc, D = F + (o ? o[3] : 0) * sc;
-    return Rpx >= D * 0.985 ? big : Math.min(big, F * Rpx / Math.sqrt(D * D - Rpx * Rpx));
-  };
+  const big = 80 * Math.max(W, H);
+  // how far the camera itself is from the Earth: once it is inside a sphere, that sphere has no outline any more
+  const rc = rot([-cam.c[0], -cam.c[1], -cam.c[2]]), camDist = Math.hypot(rc[0], rc[1], rc[2] + F / sc);
+  const sil = r => (r >= camDist ? big : Math.min(big, F * r / Math.sqrt(Math.max(1e-30, camDist * camDist - r * r))));    // outline radius on screen
+  const outside = r => Math.min(1, Math.max(0, (camDist / r - 1) / 0.4));      // 1 = seen from afar, 0 = the camera touches the sphere
+  // the circle of a sphere that faces the viewer and contains the lifeline: every moment on the line lies exactly on its own circle
+  const face = r => Array.from({ length: 145 }, (_, i) => { const a = i / 144 * 2 * Math.PI, c = r * Math.cos(a); return [c * cyaw, -c * syaw, r * Math.sin(a)]; });
   const twoPass = (pts, color, back, front, width = 1) => {    // far half faint, near half clear
     ctx.strokeStyle = color; ctx.lineWidth = width;
     ctx.globalAlpha = back; path(pts, false, 1, o ? o[3] : 0); ctx.stroke();
@@ -104,21 +115,30 @@ export function drawSpace(ctx, W, H, S) {
     ctx.globalAlpha = 1;
   };
   if (o && dOut > 0) {
-    const rOut = sil(dOut), rIn = Math.min(sil(dIn), rOut);
-    if (rOut < big) { ctx.fillStyle = 'rgba(243,201,139,.055)'; path(circle(dOut), true); ctx.fill(); }      // the plane all stalks stand on
-    const g = ctx.createRadialGradient(o[0], o[1], rIn, o[0], o[1], Math.max(rOut, rIn + 1));
-    g.addColorStop(0, 'rgba(243,201,139,.20)'); g.addColorStop(.55, 'rgba(240,185,150,.10)');
-    g.addColorStop(.9, 'rgba(236,172,165,.17)'); g.addColorStop(1, 'rgba(233,165,173,.34)');
-    ctx.fillStyle = g; ctx.beginPath();
-    ctx.arc(o[0], o[1], rOut, 0, 2 * Math.PI); ctx.closePath();
-    if (rIn > 0.5) { ctx.moveTo(o[0] + rIn, o[1]); ctx.arc(o[0], o[1], rIn, 0, 2 * Math.PI); ctx.closePath(); }
-    ctx.fill('evenodd');
-    ctx.lineWidth = 1.4; ctx.strokeStyle = 'rgba(243,201,139,.75)';
-    if (rOut < big) { ctx.beginPath(); ctx.arc(o[0], o[1], rOut, 0, 2 * Math.PI); ctx.stroke(); }
-    if (rIn > 2 && rIn < big) { ctx.strokeStyle = 'rgba(243,201,139,.5)'; ctx.beginPath(); ctx.arc(o[0], o[1], rIn, 0, 2 * Math.PI); ctx.stroke(); }
+    const rOut = sil(dOut), rIn = Math.min(sil(dIn), rOut), vis = outside(dOut), visIn = outside(Math.max(dIn, 1e-12));
+    const ground = circle(dOut);
+    if (vis > 0.02 && ground.every(proj)) { ctx.globalAlpha = vis; ctx.fillStyle = 'rgba(243,201,139,.055)'; path(ground, true); ctx.fill(); ctx.globalAlpha = 1; }   // the plane all stalks stand on
+    ctx.beginPath();
+    if (camDist > dOut) {                                // seen from outside: a glowing ball, brighter towards its rim
+      const g = ctx.createRadialGradient(o[0], o[1], rIn, o[0], o[1], Math.max(rOut, rIn + 1));
+      g.addColorStop(0, 'rgba(243,201,139,.20)'); g.addColorStop(.55, 'rgba(240,185,150,.10)');
+      g.addColorStop(.9, `rgba(236,172,165,${0.1 + 0.07 * vis})`); g.addColorStop(1, `rgba(233,165,173,${0.1 + 0.24 * vis})`);
+      ctx.fillStyle = g; ctx.arc(o[0], o[1], rOut, 0, 2 * Math.PI); ctx.closePath();
+    } else {                                             // inside her light: it is simply all around, with no edge
+      const deep = Math.min(1, Math.max(0, (camDist / dOut - 0.6) / 0.4));
+      ctx.fillStyle = `rgba(242,196,146,${0.11 + 0.09 * deep})`; ctx.rect(-2, -2, W + 4, H + 4);
+    }
+    if (camDist > dIn) {
+      if (rIn > 0.5) { ctx.moveTo(o[0] + rIn, o[1]); ctx.arc(o[0], o[1], rIn, 0, 2 * Math.PI); ctx.closePath(); }
+      ctx.fill('evenodd');
+    }
+    // the rim of the ball fades away as one comes close; the circle through the lifeline stays
+    if (vis > 0.02 && rOut < big) { ctx.globalAlpha = vis * 0.45; ctx.lineWidth = 1; ctx.strokeStyle = 'rgb(243,201,139)'; ctx.beginPath(); ctx.arc(o[0], o[1], rOut, 0, 2 * Math.PI); ctx.stroke(); ctx.globalAlpha = 1; }
+    ctx.strokeStyle = 'rgba(243,201,139,.8)'; ctx.lineWidth = 1.5; path(face(dOut)); ctx.stroke();
+    if (dIn * sc > 3) { ctx.strokeStyle = 'rgba(243,201,139,.55)'; ctx.lineWidth = 1.2; path(face(dIn)); ctx.stroke(); }
     // great circles make the sphere readable as a sphere
-    if (rOut < big) for (const plane of [0, 1, 2]) twoPass(circle(dOut, plane), 'rgb(243,201,139)', 0.07, plane ? 0.3 : 0.45, plane ? 1 : 1.4);
-    if (rIn > 30 && rIn < big) for (const plane of [0, 1, 2]) twoPass(circle(dIn, plane), 'rgb(243,201,139)', 0.07, 0.3);
+    if (vis > 0.02) for (const plane of [0, 1, 2]) twoPass(circle(dOut, plane), 'rgb(243,201,139)', 0.07 * vis, (plane ? 0.3 : 0.45) * vis, plane ? 1 : 1.4);
+    if (dIn * sc > 30 && visIn > 0.02) for (const plane of [0, 1, 2]) twoPass(circle(dIn, plane), 'rgb(243,201,139)', 0.07 * visIn, 0.3 * visIn);
   }
 
   // ---- rings on the reference plane: distance = years ago ----
@@ -127,14 +147,14 @@ export function drawSpace(ctx, W, H, S) {
   for (const [d, text] of ringList) {
     const px = d * sc;
     if (px < 26 || px > 2.5 * Math.max(W, H)) continue;
-    twoPass(circle(d), '#fff', 0.05, 0.17);
+    ctx.strokeStyle = 'rgba(255,255,255,.12)'; ctx.lineWidth = 1; path(circle(d)); ctx.stroke();
     const a = -cam.yaw + Math.PI / 2 * 0.25, p = proj([d * Math.cos(a), d * Math.sin(a), 0]);       // label where the ring is closest to the viewer's right
     const q = proj([d * Math.cos(-cam.yaw - Math.PI / 2), d * Math.sin(-cam.yaw - Math.PI / 2), 0]);
     const at = onScreen(q) ? q : p;
     if (onScreen(at)) labels.push({ x: at[0], y: at[1] + 14, text, color: 'rgba(169,164,184,.85)', font: '11px "Source Sans 3", system-ui, sans-serif', prio: 1 });
   }
   const oort = 0.8 * sc;
-  if (o && oort > 60 && oort < 3 * Math.max(W, H)) {
+  if (o && oort > 60 && oort < 3 * Math.max(W, H) && sil(0.8) < big) {
     ctx.setLineDash([3, 6]); ctx.strokeStyle = 'rgba(160,190,230,.25)';
     ctx.beginPath(); ctx.arc(o[0], o[1], sil(0.8), 0, 2 * Math.PI); ctx.stroke(); ctx.setLineDash([]);
     labels.push({ x: o[0], y: o[1] - sil(0.8) - 6, text: 'Oortsche Wolke', color: 'rgba(160,190,230,.7)', font: '11px "Source Sans 3", system-ui, sans-serif', prio: 2 });
@@ -210,10 +230,14 @@ export function drawSpace(ctx, W, H, S) {
   if (sel && o) {
     const d1 = (t - sel._t) / YEAR, d0 = Math.max(0, (t - (sel._e ?? sel._t)) / YEAR);
     if (d1 > 0) {
-      ctx.fillStyle = catColor(sel.cat) + '26'; ctx.strokeStyle = catColor(sel.cat); ctx.lineWidth = 1.2; ctx.setLineDash([5, 5]);
-      ctx.beginPath(); ctx.arc(o[0], o[1], sil(d1), 0, 2 * Math.PI); ctx.closePath();
-      if (sel._e) { ctx.moveTo(o[0] + sil(d0), o[1]); ctx.arc(o[0], o[1], sil(d0), 0, 2 * Math.PI); ctx.closePath(); ctx.fill('evenodd'); }
-      ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = catColor(sel.cat) + '26'; ctx.strokeStyle = catColor(sel.cat); ctx.lineWidth = 1.3;
+      if (sel._e && camDist > d1) {
+        ctx.beginPath(); ctx.arc(o[0], o[1], sil(d1), 0, 2 * Math.PI); ctx.closePath();
+        ctx.moveTo(o[0] + sil(d0), o[1]); ctx.arc(o[0], o[1], sil(d0), 0, 2 * Math.PI); ctx.closePath(); ctx.fill('evenodd');
+      }
+      ctx.setLineDash([5, 5]); path(face(d1)); ctx.stroke();
+      if (sel._e && d0 * sc > 3) { path(face(d0)); ctx.stroke(); }
+      ctx.setLineDash([]);
       ctx.globalAlpha = 0.5; path(circle(d1)); ctx.stroke(); ctx.globalAlpha = 1;
     }
   }

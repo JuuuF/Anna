@@ -69,20 +69,23 @@ function halo(color) {
 }
 // soft patches along the galactic plane, brighter towards the centre of the galaxy (Sagittarius) and in Cygnus
 const GP = [192.859, 27.128, 122.932].map(v => v * RAD);
-const milky = [];
+export const milky = [];
 for (let l = 0; l < 360; l += 2) for (let k = 0; k < 2; k++) {
   const b = (hash(l, k) - 0.5) * (hash(l, k + 7) < 0.3 ? 16 : 8) * RAD, L = l * RAD;
   const dec = Math.asin(Math.sin(b) * Math.sin(GP[1]) + Math.cos(b) * Math.cos(GP[1]) * Math.cos(GP[2] - L));
   const ra = GP[0] + Math.atan2(Math.cos(b) * Math.sin(GP[2] - L), Math.sin(b) * Math.cos(GP[1]) - Math.cos(b) * Math.sin(GP[1]) * Math.cos(GP[2] - L));
   const centre = Math.cos(L) * 0.5 + 0.5, cygnus = Math.exp(-(((l - 75) / 22) ** 2));
   milky.push([ra / RAD, dec / RAD, 5 + hash(l, k + 3) * 6, 0.035 + 0.05 * centre ** 2 + 0.03 * cygnus + 0.02 * hash(l, k + 5)]);
+  milky[milky.length - 1].dir = [Math.cos(dec) * Math.cos(ra), Math.cos(dec) * Math.sin(ra), Math.sin(dec)];
 }
 let mist = null;
-function mistSprite() {
+export function mistSprite() {
+  if (mist) return mist;
   mist = Object.assign(document.createElement('canvas'), { width: 64, height: 64 });
   const x = mist.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
   g.addColorStop(0, 'rgba(190,205,235,1)'); g.addColorStop(.5, 'rgba(170,190,230,.45)'); g.addColorStop(1, 'rgba(160,180,225,0)');
   x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+  return mist;
 }
 
 export function drawSky(ctx, W, H, S) {
@@ -121,7 +124,7 @@ export function drawSky(ctx, W, H, S) {
   const sky = ctx.createLinearGradient(0, hy - 1.1 * H, 0, hy);
   sky.addColorStop(0, '#02040b'); sky.addColorStop(.6, '#060b1a'); sky.addColorStop(1, '#101a30');
   ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
-  if (!mist) mistSprite();
+  mistSprite();
   for (const [ra, dec, size, alpha] of milky) {
     const p = star(ra, dec);
     if (!p || p[3] < -2) continue;
