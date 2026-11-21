@@ -538,7 +538,7 @@ async function prepPhoto(file) {
 
 function editItem(item) {
   openPanel('moments');
-  const el = $('#p-moments .body'), i = item || { vis: 'private', cat: 'freude', photos: [] };
+  const el = $('#p-moments .body'), i = item || { vis: 'private', cat: 'sonst', photos: [] };
   let keep = [...(i.photos || [])];
   const removed = [], fresh = [];        // fresh: newly picked files, collected over as many picks as one likes
   const [d0, t0] = (i.date || '').split('T'), [d1, t1] = (i.end || '').split('T');
@@ -694,7 +694,7 @@ function addPhotos() {
         // a moment of that very day, with the same visibility, takes the photos in; otherwise they stand for themselves
         const host = d.approx ? null : S.items.find(i => !i._e && !i.fixed && i.date.slice(0, 10) === d.date && i.vis === vis && store.canEdit(i));
         if (host) { const { _t, _e, ...base } = host; entries.push({ item: base, newPhotos }); joined += d.files.length; }
-        else entries.push({ item: { title: 'Fotos', date: d.time && !d.approx ? `${d.date}T${d.time}` : d.date, period: false, end: '', cat: 'freude', imp: 1, text: '', vis, photos: [], photoOnly: true, approx: d.approx }, newPhotos });
+        else entries.push({ item: { title: 'Fotos', date: d.time && !d.approx ? `${d.date}T${d.time}` : d.date, period: false, end: '', cat: 'sonst', imp: 1, text: '', vis, photos: [], photoOnly: true, approx: d.approx }, newPhotos });
       }
       await store.saveMany(entries);
       momentsTab = 'wall'; rebuild();
@@ -746,7 +746,7 @@ function renderLogin() {
         <label>Darf …<select name="role"><option value="editor">Erinnerungen ansehen und hinzufügen</option><option value="viewer">Erinnerungen nur ansehen</option><option value="admin">alles verwalten</option></select></label>
         <p class="status"></p><button class="primary">Zugang anlegen</button></form>
       <form id="cats"><h3>Themen der Momente</h3>
-        <p class="muted" style="margin-top:0">Name und Farbe ändern, neue Themen anlegen oder nicht gebrauchte entfernen.</p>
+        <p class="muted" style="margin-top:0">Name und Farbe ändern, die Reihenfolge mit den Pfeilen festlegen, neue Themen anlegen oder nicht gebrauchte entfernen. In dieser Reihenfolge erscheinen die Themen auch in der Auswahl beim Anlegen eines Moments.</p>
         <div id="catrows"></div>
         <p class="status"></p>
         <div class="row"><button type="button" id="catAdd">Thema hinzufügen</button><button class="primary">Themen speichern</button></div></form>
@@ -768,9 +768,12 @@ function renderLogin() {
   const drawCats = () => {
     $('#catrows').innerHTML = cats.map((c, n) => `<div class="catrow"><input type="color" data-n="${n}" value="${esc(c.color)}" aria-label="Farbe">
       <input type="text" data-n="${n}" value="${esc(c.name)}" maxlength="40" required aria-label="Name des Themas">
+      <button type="button" class="mv up" data-mv="-1" data-n="${n}" ${n ? '' : 'disabled'} aria-label="Nach oben" title="Nach oben"></button>
+      <button type="button" class="mv down" data-mv="1" data-n="${n}" ${n < cats.length - 1 ? '' : 'disabled'} aria-label="Nach unten" title="Nach unten"></button>
       ${c.id === 'sonst' ? '<span class="muted" style="font-size:12.5px">bleibt immer</span>' : `<button type="button" class="danger" data-n="${n}" title="${used(c.id) ? `${used(c.id)} Momente wechseln dann zu „Sonstiges“` : 'Wird nicht verwendet'}">Entfernen</button>`}</div>`).join('');
     $$('#catrows input', el).forEach(i => i.oninput = () => { cats[+i.dataset.n][i.type === 'color' ? 'color' : 'name'] = i.value; });
-    $$('#catrows button', el).forEach(b => b.onclick = () => {
+    $$('#catrows .mv', el).forEach(b => b.onclick = () => { const n = +b.dataset.n, m = n + +b.dataset.mv; [cats[n], cats[m]] = [cats[m], cats[n]]; drawCats(); });
+    $$('#catrows button.danger', el).forEach(b => b.onclick = () => {
       const c = cats[+b.dataset.n], n = used(c.id);
       if (n && !confirm(`„${c.name}“ wird von ${n} ${n === 1 ? 'Moment' : 'Momenten'} verwendet. Diese gehören danach zu „Sonstiges“. Trotzdem entfernen?`)) return;
       cats.splice(+b.dataset.n, 1); drawCats();

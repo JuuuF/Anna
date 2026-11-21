@@ -126,9 +126,12 @@ body.sky .panel.right { right: 26px; top: 200px; max-height: calc(100vh - 200px 
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .row input[type=range] { flex: 1; accent-color: var(--gold); }
 .tag { display: inline-block; font: 600 11px var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-right: 12px; }
-.catrow { display: grid; grid-template-columns: 44px 1fr auto; gap: 8px; align-items: center; padding: 5px 0; }
+.catrow { display: grid; grid-template-columns: 44px 1fr 30px 30px auto; gap: 8px; align-items: center; padding: 5px 0; }
 .catrow input[type=color] { width: 44px; height: 38px; padding: 2px; background: #090b13; border: 1px solid var(--line2); border-radius: 3px; cursor: pointer; }
 .catrow button { padding: 6px 10px; font-size: 13px; }
+.catrow .mv { width: 30px; height: 34px; padding: 0; display: grid; place-items: center; }
+.catrow .mv::before { content: ""; width: 7px; height: 7px; border-left: 1.5px solid currentColor; border-top: 1.5px solid currentColor; transform: translateY(2px) rotate(45deg); }
+.catrow .mv.down::before { transform: translateY(-2px) rotate(225deg); }
 .photorow { display: grid; grid-template-columns: 64px 1fr auto; gap: 10px; align-items: end; padding: 8px 0; border-top: 1px solid var(--line); }
 .photorow img { width: 64px; height: 64px; object-fit: cover; border-radius: 2px; }
 .photorow button { padding: 6px 10px; }
