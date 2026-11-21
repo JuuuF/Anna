@@ -4,6 +4,38 @@
   "birth": "1970-04-16",
   "death": "2026-08-27T03:00"
  },
+ "cats": [
+  {
+   "id": "kindheit",
+   "name": "Kindheit & Schule",
+   "color": "#8fb8e8"
+  },
+  {
+   "id": "beruf",
+   "name": "Ausbildung & Beruf",
+   "color": "#9fd4c0"
+  },
+  {
+   "id": "liebe",
+   "name": "Liebe & Familie",
+   "color": "#e9a5ad"
+  },
+  {
+   "id": "freude",
+   "name": "Reisen",
+   "color": "#f3c98b"
+  },
+  {
+   "id": "krankheit",
+   "name": "Krankheit",
+   "color": "#9a93b5"
+  },
+  {
+   "id": "sonst",
+   "name": "Sonstiges",
+   "color": "#d8d2c4"
+  }
+ ],
  "items": [
   {
    "cat": "liebe",
